@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "MassEntityTypes.h"
+#include "Entity/MassUnitEntityManager.h"
 #include "MassUnitNavigationSystem.generated.h"
 
 class UMassEntitySubsystem;
@@ -34,7 +35,10 @@ public:
     
     /** Request a path for an entity */
     UFUNCTION(BlueprintCallable, Category = "Mass Unit System")
-    bool RequestPath(FMassEntityHandle Entity, const FVector& Destination);
+    bool RequestPath(FMassUnitHandle UnitHandle, const FVector& Destination);
+    
+    /** Internal method to request a path for an entity */
+    bool RequestPathInternal(FMassEntityHandle Entity, const FVector& Destination);
     
     /** Process path requests */
     UFUNCTION(BlueprintCallable, Category = "Mass Unit System")

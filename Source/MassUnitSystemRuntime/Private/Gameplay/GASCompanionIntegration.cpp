@@ -5,8 +5,6 @@
 #include "MassEntitySubsystem.h"
 #include "Entity/MassUnitFragments.h"
 #include "MassEntityView.h"
-#include "GSCAbilitySystemComponent.h"
-#include "Abilities/GSCAbilitySet.h"
 #include "BehaviorTree/BehaviorTree.h"
 #include "BehaviorTree/BlackboardData.h"
 #include "BehaviorTree/BehaviorTreeComponent.h"
@@ -20,6 +18,12 @@
 #include "BehaviorTree/Blackboard/BlackboardKeyType_Class.h"
 #include "BehaviorTree/Blackboard/BlackboardKeyType_Enum.h"
 #include "BehaviorTree/Blackboard/BlackboardKeyType_String.h"
+
+// Include GASCompanion headers if available
+#if WITH_GASCOMPANION
+#include "GSCAbilitySystemComponent.h"
+#include "Abilities/GSCAbilitySet.h"
+#endif
 
 UGASCompanionIntegration::UGASCompanionIntegration()
     : GASIntegration(nullptr)
@@ -69,8 +73,14 @@ void UGASCompanionIntegration::Deinitialize()
     UE_LOG(LogTemp, Log, TEXT("GASCompanionIntegration: Deinitialized"));
 }
 
-bool UGASCompanionIntegration::CreateGSCCompatibleUnit(FMassEntityHandle Entity)
+bool UGASCompanionIntegration::CreateGSCCompatibleUnit(FMassUnitHandle UnitHandle)
 {
+    return CreateGSCCompatibleUnitInternal(UnitHandle.EntityHandle);
+}
+
+bool UGASCompanionIntegration::CreateGSCCompatibleUnitInternal(FMassEntityHandle Entity)
+{
+#if WITH_GASCOMPANION
     // Skip if not initialized
     if (!GASIntegration)
     {
@@ -89,10 +99,20 @@ bool UGASCompanionIntegration::CreateGSCCompatibleUnit(FMassEntityHandle Entity)
     UE_LOG(LogTemp, Log, TEXT("GASCompanionIntegration: Created GSC-compatible unit for entity %s"), *Entity.ToString());
     
     return true;
+#else
+    UE_LOG(LogTemp, Warning, TEXT("GASCompanionIntegration: GASCompanion is not available"));
+    return false;
+#endif
 }
 
-bool UGASCompanionIntegration::ApplyGSCAbilitySet(FMassEntityHandle Entity, UGSCAbilitySet* AbilitySet)
+bool UGASCompanionIntegration::ApplyGSCAbilitySet(FMassUnitHandle UnitHandle, UGSCAbilitySet* AbilitySet)
 {
+    return ApplyGSCAbilitySetInternal(UnitHandle.EntityHandle, AbilitySet);
+}
+
+bool UGASCompanionIntegration::ApplyGSCAbilitySetInternal(FMassEntityHandle Entity, UGSCAbilitySet* AbilitySet)
+{
+#if WITH_GASCOMPANION
     // Skip if not initialized
     if (!GASIntegration || !AbilitySet)
     {
@@ -113,9 +133,18 @@ bool UGASCompanionIntegration::ApplyGSCAbilitySet(FMassEntityHandle Entity, UGSC
     UE_LOG(LogTemp, Log, TEXT("GASCompanionIntegration: Applied ability set to entity %s"), *Entity.ToString());
     
     return true;
+#else
+    UE_LOG(LogTemp, Warning, TEXT("GASCompanionIntegration: GASCompanion is not available"));
+    return false;
+#endif
 }
 
-bool UGASCompanionIntegration::SetBehaviorTree(FMassEntityHandle Entity, UBehaviorTree* BehaviorTree, UBlackboardData* BlackboardData)
+bool UGASCompanionIntegration::SetBehaviorTree(FMassUnitHandle UnitHandle, UBehaviorTree* BehaviorTree, UBlackboardData* BlackboardData)
+{
+    return SetBehaviorTreeInternal(UnitHandle.EntityHandle, BehaviorTree, BlackboardData);
+}
+
+bool UGASCompanionIntegration::SetBehaviorTreeInternal(FMassEntityHandle Entity, UBehaviorTree* BehaviorTree, UBlackboardData* BlackboardData)
 {
     // Skip if not initialized
     if (!GASIntegration || !BehaviorTree || !BlackboardData)
@@ -138,7 +167,12 @@ bool UGASCompanionIntegration::SetBehaviorTree(FMassEntityHandle Entity, UBehavi
     return true;
 }
 
-bool UGASCompanionIntegration::ExecuteBTTask(FMassEntityHandle Entity, FGameplayTag TaskTag)
+bool UGASCompanionIntegration::ExecuteBTTask(FMassUnitHandle UnitHandle, FGameplayTag TaskTag)
+{
+    return ExecuteBTTaskInternal(UnitHandle.EntityHandle, TaskTag);
+}
+
+bool UGASCompanionIntegration::ExecuteBTTaskInternal(FMassEntityHandle Entity, FGameplayTag TaskTag)
 {
     // Skip if not initialized
     if (!GASIntegration)

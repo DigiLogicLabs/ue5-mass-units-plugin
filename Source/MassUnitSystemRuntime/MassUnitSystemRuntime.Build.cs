@@ -1,12 +1,17 @@
 // Copyright Your Company. All Rights Reserved.
 
 using UnrealBuildTool;
+using System.IO;
 
 public class MassUnitSystemRuntime : ModuleRules
 {
 	public MassUnitSystemRuntime(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
+		
+		// Always define WITH_GASCOMPANION=0 for now
+		// This can be changed to 1 if GASCompanion is available in the project
+		PublicDefinitions.Add("WITH_GASCOMPANION=0");
 		
 		PublicIncludePaths.AddRange(
 			new string[] {
@@ -28,18 +33,12 @@ public class MassUnitSystemRuntime : ModuleRules
 				"Engine",
 				"InputCore",
 				"MassEntity",
-				"MassCommon",
-				"MassSpawner",
-				"MassMovement",
-				"MassNavigation",
-				"MassGameplay",
 				"Niagara",
 				"GameplayAbilities",
 				"GameplayTags",
 				"GameplayTasks",
 				"NavigationSystem",
-				"AIModule",
-				"GASCompanion"
+				"AIModule"
 				// ... add other public dependencies that you statically link with here ...
 			}
 		);

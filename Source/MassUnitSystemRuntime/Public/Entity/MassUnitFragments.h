@@ -165,3 +165,35 @@ struct MASSUNITSYSTEMRUNTIME_API FMassUnitFormationFragment
     /** Whether the unit is in a formation */
     bool IsInFormation() const { return FormationHandle >= 0; }
 };
+
+/**
+ * Fragment for unit navigation information
+ */
+USTRUCT()
+struct MASSUNITSYSTEMRUNTIME_API FMassUnitNavigationFragment
+{
+    GENERATED_BODY()
+
+    /** Destination location */
+    FVector DestinationLocation = FVector::ZeroVector;
+
+    /** Path points */
+    TArray<FVector> PathPoints;
+
+    /** Current path index */
+    int32 CurrentPathIndex = -1;
+
+    /** Whether a path has been requested */
+    bool bPathRequested = false;
+
+    /** Whether the path is valid */
+    bool bPathValid = false;
+
+    /** Whether the unit has reached its destination */
+    bool HasReachedDestination() const 
+    { 
+        return PathPoints.Num() == 0 || 
+              (CurrentPathIndex >= PathPoints.Num() - 1 && 
+               FVector::DistSquared(DestinationLocation, PathPoints.Last()) < 100.0f); 
+    }
+};

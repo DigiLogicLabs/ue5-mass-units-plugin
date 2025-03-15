@@ -4,13 +4,25 @@
 
 #include "CoreMinimal.h"
 #include "MassEntityTypes.h"
+#include "Entity/MassUnitEntityManager.h"
+
+// Check if GASCompanion is available
+#if WITH_GASCOMPANION
+#include "Abilities/GSCAbilitySystemComponent.h"
+#include "Abilities/GSCAbilitySet.h"
+#endif
+
 #include "GASCompanionIntegration.generated.h"
 
 class UGASUnitIntegration;
-class UGSCAbilitySystemComponent;
-class UGSCAbilitySet;
 class UBehaviorTree;
 class UBlackboardData;
+
+// Forward declare GASCompanion classes if not available
+#if !WITH_GASCOMPANION
+class UGSCAbilitySystemComponent;
+class UGSCAbilitySet;
+#endif
 
 /**
  * Specific integration with GASCompanion for the Mass Unit System
@@ -32,19 +44,31 @@ public:
     
     /** Create a GASCompanion-compatible unit */
     UFUNCTION(BlueprintCallable, Category = "Mass Unit System")
-    bool CreateGSCCompatibleUnit(FMassEntityHandle Entity);
+    bool CreateGSCCompatibleUnit(FMassUnitHandle UnitHandle);
     
     /** Apply a GASCompanion ability set to an entity */
     UFUNCTION(BlueprintCallable, Category = "Mass Unit System")
-    bool ApplyGSCAbilitySet(FMassEntityHandle Entity, UGSCAbilitySet* AbilitySet);
+    bool ApplyGSCAbilitySet(FMassUnitHandle UnitHandle, UGSCAbilitySet* AbilitySet);
     
     /** Set behavior tree for an entity */
     UFUNCTION(BlueprintCallable, Category = "Mass Unit System")
-    bool SetBehaviorTree(FMassEntityHandle Entity, UBehaviorTree* BehaviorTree, UBlackboardData* BlackboardData);
+    bool SetBehaviorTree(FMassUnitHandle UnitHandle, UBehaviorTree* BehaviorTree, UBlackboardData* BlackboardData);
     
     /** Execute a behavior tree task for an entity */
     UFUNCTION(BlueprintCallable, Category = "Mass Unit System")
-    bool ExecuteBTTask(FMassEntityHandle Entity, FGameplayTag TaskTag);
+    bool ExecuteBTTask(FMassUnitHandle UnitHandle, FGameplayTag TaskTag);
+    
+    /** Internal method to create a GASCompanion-compatible unit */
+    bool CreateGSCCompatibleUnitInternal(FMassEntityHandle Entity);
+    
+    /** Internal method to apply a GASCompanion ability set to an entity */
+    bool ApplyGSCAbilitySetInternal(FMassEntityHandle Entity, UGSCAbilitySet* AbilitySet);
+    
+    /** Internal method to set behavior tree for an entity */
+    bool SetBehaviorTreeInternal(FMassEntityHandle Entity, UBehaviorTree* BehaviorTree, UBlackboardData* BlackboardData);
+    
+    /** Internal method to execute a behavior tree task for an entity */
+    bool ExecuteBTTaskInternal(FMassEntityHandle Entity, FGameplayTag TaskTag);
 
 private:
     /** Reference to the GAS integration */

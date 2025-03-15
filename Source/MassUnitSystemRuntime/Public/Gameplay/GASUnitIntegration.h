@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "MassEntityTypes.h"
+#include "Entity/MassUnitEntityManager.h"
 #include "GameplayAbilitySpec.h"
 #include "GASUnitIntegration.generated.h"
 
@@ -34,27 +35,45 @@ public:
     
     /** Get the ability system component for an entity */
     UFUNCTION(BlueprintCallable, Category = "Mass Unit System")
-    UAbilitySystemComponent* GetAbilitySystemForEntity(FMassEntityHandle Entity);
+    UAbilitySystemComponent* GetAbilitySystemForEntity(FMassUnitHandle UnitHandle);
     
     /** Grant an ability to an entity */
     UFUNCTION(BlueprintCallable, Category = "Mass Unit System")
-    FGameplayAbilitySpecHandle GrantAbility(FMassEntityHandle Entity, TSubclassOf<UGameplayAbility> AbilityClass, int32 Level = 1);
+    FGameplayAbilitySpecHandle GrantAbility(FMassUnitHandle UnitHandle, TSubclassOf<UGameplayAbility> AbilityClass, int32 Level = 1);
     
     /** Activate an ability for an entity */
     UFUNCTION(BlueprintCallable, Category = "Mass Unit System")
-    bool ActivateAbility(FMassEntityHandle Entity, FGameplayTag AbilityTag);
+    bool ActivateAbility(FMassUnitHandle UnitHandle, FGameplayTag AbilityTag);
     
     /** Apply a gameplay effect to an entity */
     UFUNCTION(BlueprintCallable, Category = "Mass Unit System")
-    bool ApplyGameplayEffect(FMassEntityHandle Entity, TSubclassOf<UGameplayEffect> EffectClass, AActor* Instigator = nullptr);
+    bool ApplyGameplayEffect(FMassUnitHandle UnitHandle, TSubclassOf<UGameplayEffect> EffectClass, AActor* Instigator = nullptr);
     
     /** Get an attribute value for an entity */
     UFUNCTION(BlueprintCallable, Category = "Mass Unit System")
-    float GetAttributeValue(FMassEntityHandle Entity, FGameplayAttribute Attribute);
+    float GetAttributeValue(FMassUnitHandle UnitHandle, FGameplayAttribute Attribute);
     
     /** Set an attribute value for an entity */
     UFUNCTION(BlueprintCallable, Category = "Mass Unit System")
-    bool SetAttributeValue(FMassEntityHandle Entity, FGameplayAttribute Attribute, float Value);
+    bool SetAttributeValue(FMassUnitHandle UnitHandle, FGameplayAttribute Attribute, float Value);
+    
+    /** Internal method to get the ability system component for an entity */
+    UAbilitySystemComponent* GetAbilitySystemForEntityInternal(FMassEntityHandle Entity);
+    
+    /** Internal method to grant an ability to an entity */
+    FGameplayAbilitySpecHandle GrantAbilityInternal(FMassEntityHandle Entity, TSubclassOf<UGameplayAbility> AbilityClass, int32 Level = 1);
+    
+    /** Internal method to activate an ability for an entity */
+    bool ActivateAbilityInternal(FMassEntityHandle Entity, FGameplayTag AbilityTag);
+    
+    /** Internal method to apply a gameplay effect to an entity */
+    bool ApplyGameplayEffectInternal(FMassEntityHandle Entity, TSubclassOf<UGameplayEffect> EffectClass, AActor* Instigator = nullptr);
+    
+    /** Internal method to get an attribute value for an entity */
+    float GetAttributeValueInternal(FMassEntityHandle Entity, FGameplayAttribute Attribute);
+    
+    /** Internal method to set an attribute value for an entity */
+    bool SetAttributeValueInternal(FMassEntityHandle Entity, FGameplayAttribute Attribute, float Value);
     
     /** Update attributes from entity data */
     void UpdateAttributes(FMassEntityHandle Entity, const TMap<FGameplayAttribute, float>& Attributes);

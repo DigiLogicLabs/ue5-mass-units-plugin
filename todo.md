@@ -5,8 +5,8 @@
 - [x] Analyze Kingsmaker video for reference implementation
 - [x] Research Niagara and vertex animation techniques
 - [x] Research GAS integration for AI units
-- [ ] Explore Mass Entity System in UE5
-- [ ] Research optimization techniques for large-scale simulations
+- [x] Explore Mass Entity System in UE5
+- [x] Research optimization techniques for large-scale simulations
 
 ## Design Phase
 - [x] Design plugin architecture and components

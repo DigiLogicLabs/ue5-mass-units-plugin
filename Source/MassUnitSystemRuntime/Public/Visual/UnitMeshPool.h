@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "MassEntityTypes.h"
+#include "Entity/MassUnitEntityManager.h"
 #include "UnitMeshPool.generated.h"
 
 class USkeletalMeshComponent;
@@ -29,7 +30,7 @@ public:
     
     /** Get a mesh for a unit */
     UFUNCTION(BlueprintCallable, Category = "Mass Unit System")
-    USkeletalMeshComponent* GetMeshForUnit(FMassEntityHandle Entity);
+    USkeletalMeshComponent* GetMeshForUnit(FMassUnitHandle UnitHandle);
     
     /** Release a mesh back to the pool */
     UFUNCTION(BlueprintCallable, Category = "Mass Unit System")
@@ -37,11 +38,20 @@ public:
     
     /** Transition a unit to skeletal mesh representation */
     UFUNCTION(BlueprintCallable, Category = "Mass Unit System")
-    bool TransitionToSkeletal(FMassEntityHandle Entity);
+    bool TransitionToSkeletal(FMassUnitHandle UnitHandle);
     
     /** Transition a unit to vertex animation representation */
     UFUNCTION(BlueprintCallable, Category = "Mass Unit System")
-    bool TransitionToVertex(FMassEntityHandle Entity);
+    bool TransitionToVertex(FMassUnitHandle UnitHandle);
+    
+    /** Internal method to get a mesh for a unit */
+    USkeletalMeshComponent* GetMeshForUnitInternal(FMassEntityHandle Entity);
+    
+    /** Internal method to transition a unit to skeletal mesh representation */
+    bool TransitionToSkeletalInternal(FMassEntityHandle Entity);
+    
+    /** Internal method to transition a unit to vertex animation representation */
+    bool TransitionToVertexInternal(FMassEntityHandle Entity);
 
 private:
     /** Reference to the world */

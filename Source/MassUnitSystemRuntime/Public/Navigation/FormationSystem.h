@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "MassEntityTypes.h"
+#include "Entity/MassUnitEntityManager.h"
 #include "FormationSystem.generated.h"
 
 class UMassEntitySubsystem;
@@ -35,11 +36,17 @@ public:
     
     /** Add an entity to a formation */
     UFUNCTION(BlueprintCallable, Category = "Mass Unit System")
-    bool AddEntityToFormation(FMassEntityHandle Entity, int32 FormationHandle);
+    bool AddEntityToFormation(FMassUnitHandle UnitHandle, int32 FormationHandle);
     
     /** Remove an entity from a formation */
     UFUNCTION(BlueprintCallable, Category = "Mass Unit System")
-    bool RemoveEntityFromFormation(FMassEntityHandle Entity);
+    bool RemoveEntityFromFormation(FMassUnitHandle UnitHandle);
+    
+    /** Internal method to add an entity to a formation */
+    bool AddEntityToFormationInternal(FMassEntityHandle Entity, int32 FormationHandle);
+    
+    /** Internal method to remove an entity from a formation */
+    bool RemoveEntityFromFormationInternal(FMassEntityHandle Entity);
     
     /** Set formation target location */
     UFUNCTION(BlueprintCallable, Category = "Mass Unit System")
@@ -59,7 +66,10 @@ public:
     
     /** Get entities in formation */
     UFUNCTION(BlueprintCallable, Category = "Mass Unit System")
-    TArray<FMassEntityHandle> GetEntitiesInFormation(int32 FormationHandle) const;
+    TArray<FMassUnitHandle> GetEntitiesInFormation(int32 FormationHandle) const;
+    
+    /** Internal method to get entities in formation */
+    TArray<FMassEntityHandle> GetEntitiesInFormationInternal(int32 FormationHandle) const;
 
 private:
     /** Reference to the Mass Entity Subsystem */

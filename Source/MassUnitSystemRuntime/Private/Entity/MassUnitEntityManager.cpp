@@ -24,7 +24,12 @@ void UMassUnitEntityManager::Initialize(UMassEntitySubsystem* InEntitySubsystem)
     UE_LOG(LogTemp, Log, TEXT("MassUnitEntityManager: Initialized"));
 }
 
-FMassEntityHandle UMassUnitEntityManager::CreateUnitFromTemplate(UUnitTemplate* Template, const FTransform& SpawnTransform)
+FMassUnitHandle UMassUnitEntityManager::CreateUnitFromTemplate(UUnitTemplate* Template, const FTransform& SpawnTransform)
+{
+    return FMassUnitHandle(CreateUnitFromTemplateInternal(Template, SpawnTransform));
+}
+
+FMassEntityHandle UMassUnitEntityManager::CreateUnitFromTemplateInternal(UUnitTemplate* Template, const FTransform& SpawnTransform)
 {
     if (!Template || !EntitySubsystem)
     {
@@ -95,7 +100,12 @@ FMassEntityHandle UMassUnitEntityManager::CreateUnitFromTemplate(UUnitTemplate* 
     return EntityHandle;
 }
 
-void UMassUnitEntityManager::DestroyUnit(FMassEntityHandle EntityHandle)
+void UMassUnitEntityManager::DestroyUnit(FMassUnitHandle UnitHandle)
+{
+    DestroyUnitInternal(UnitHandle.EntityHandle);
+}
+
+void UMassUnitEntityManager::DestroyUnitInternal(FMassEntityHandle EntityHandle)
 {
     if (!EntitySubsystem || !EntityHandle.IsValid())
     {
@@ -143,7 +153,21 @@ void UMassUnitEntityManager::DestroyUnit(FMassEntityHandle EntityHandle)
     UE_LOG(LogTemp, Log, TEXT("MassUnitEntityManager: Destroyed unit"));
 }
 
-TArray<FMassEntityHandle> UMassUnitEntityManager::GetUnitsByType(FGameplayTag UnitType)
+TArray<FMassUnitHandle> UMassUnitEntityManager::GetUnitsByType(FGameplayTag UnitType)
+{
+    TArray<FMassUnitHandle> Result;
+    TArray<FMassEntityHandle> RawHandles = GetUnitsByTypeInternal(UnitType);
+    
+    // Convert raw handles to unit handles
+    for (const FMassEntityHandle& Handle : RawHandles)
+    {
+        Result.Add(FMassUnitHandle(Handle));
+    }
+    
+    return Result;
+}
+
+TArray<FMassEntityHandle> UMassUnitEntityManager::GetUnitsByTypeInternal(FGameplayTag UnitType)
 {
     if (UnitType.IsValid())
     {
@@ -156,7 +180,21 @@ TArray<FMassEntityHandle> UMassUnitEntityManager::GetUnitsByType(FGameplayTag Un
     return TArray<FMassEntityHandle>();
 }
 
-TArray<FMassEntityHandle> UMassUnitEntityManager::GetUnitsByTeam(int32 TeamID)
+TArray<FMassUnitHandle> UMassUnitEntityManager::GetUnitsByTeam(int32 TeamID)
+{
+    TArray<FMassUnitHandle> Result;
+    TArray<FMassEntityHandle> RawHandles = GetUnitsByTeamInternal(TeamID);
+    
+    // Convert raw handles to unit handles
+    for (const FMassEntityHandle& Handle : RawHandles)
+    {
+        Result.Add(FMassUnitHandle(Handle));
+    }
+    
+    return Result;
+}
+
+TArray<FMassEntityHandle> UMassUnitEntityManager::GetUnitsByTeamInternal(int32 TeamID)
 {
     if (TeamID >= 0)
     {

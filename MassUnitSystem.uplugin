@@ -28,14 +28,6 @@
 	],
 	"Plugins": [
 		{
-			"Name": "MassEntity",
-			"Enabled": true
-		},
-		{
-			"Name": "MassGameplay",
-			"Enabled": true
-		},
-		{
 			"Name": "Niagara",
 			"Enabled": true
 		},
@@ -45,7 +37,8 @@
 		},
 		{
 			"Name": "GASCompanion",
-			"Enabled": true
+			"Enabled": true,
+			"Optional": true
 		}
 	]
 }

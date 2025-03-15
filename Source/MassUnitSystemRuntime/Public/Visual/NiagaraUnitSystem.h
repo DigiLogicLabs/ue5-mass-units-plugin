@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "NiagaraSystem.h"
 #include "NiagaraComponent.h"
+#include "Entity/MassUnitEntityManager.h"
 #include "NiagaraUnitSystem.generated.h"
 
 class UMassEntitySubsystem;
@@ -30,7 +31,10 @@ public:
     
     /** Update unit visuals */
     UFUNCTION(BlueprintCallable, Category = "Mass Unit System")
-    void UpdateUnitVisuals(const TArray<FMassEntityHandle>& Entities);
+    void UpdateUnitVisuals(const TArray<FMassUnitHandle>& UnitHandles);
+    
+    /** Internal method to update unit visuals */
+    void UpdateUnitVisualsInternal(const TArray<FMassEntityHandle>& Entities);
     
     /** Set LOD level */
     UFUNCTION(BlueprintCallable, Category = "Mass Unit System")

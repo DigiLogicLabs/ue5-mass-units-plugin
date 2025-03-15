@@ -4,9 +4,14 @@
 
 #include "CoreMinimal.h"
 #include "MassEntityTypes.h"
+#include "Entity/MassUnitEntityManager.h"
 #include "UnitGameplayEventSystem.generated.h"
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnGameplayEvent, FGameplayTag, EventTag, FMassEntityHandle, Entity, const FGameplayEventData&, EventData);
+// Forward declaration
+struct FGameplayEventData;
+
+// Internal delegate for gameplay events
+DECLARE_MULTICAST_DELEGATE_ThreeParams(FOnGameplayEvent, FGameplayTag, FMassEntityHandle, const FGameplayEventData&);
 
 /**
  * System for handling gameplay events for units in the Mass Unit System
@@ -28,14 +33,15 @@ public:
     
     /** Dispatch an event */
     UFUNCTION(BlueprintCallable, Category = "Mass Unit System")
-    void DispatchEvent(FGameplayTag EventTag, FMassEntityHandle Entity, const FGameplayEventData& EventData);
+    void DispatchEvent(FGameplayTag EventTag, FMassUnitHandle UnitHandle, const FGameplayEventData& EventData);
+    
+    /** Internal method to dispatch an event */
+    void DispatchEventInternal(FGameplayTag EventTag, FMassEntityHandle Entity, const FGameplayEventData& EventData);
     
     /** Register a listener for an event */
-    UFUNCTION(BlueprintCallable, Category = "Mass Unit System")
     void RegisterListener(FGameplayTag EventTag, const FOnGameplayEvent& Listener);
     
     /** Unregister a listener for an event */
-    UFUNCTION(BlueprintCallable, Category = "Mass Unit System")
     void UnregisterListener(FGameplayTag EventTag, const FOnGameplayEvent& Listener);
 
 private:
