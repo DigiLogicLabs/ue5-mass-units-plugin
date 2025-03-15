@@ -4,8 +4,9 @@
 #include "MassEntitySubsystem.h"
 #include "Visual/VertexAnimationManager.h"
 #include "Entity/MassUnitFragments.h"
-#include "MassCommonFragments.h"
+#include "MassUnitCommonFragments.h"
 #include "MassEntityView.h"
+#include "MassEntityTypes.h"
 #include "NiagaraDataInterfaceArrayFunctionLibrary.h"
 #include "NiagaraFunctionLibrary.h"
 #include "Engine/World.h"
@@ -69,6 +70,21 @@ void UNiagaraUnitSystem::Deinitialize()
     World = nullptr;
     
     UE_LOG(LogTemp, Log, TEXT("NiagaraUnitSystem: Deinitialized"));
+}
+
+void UNiagaraUnitSystem::UpdateUnitVisualsByHandles(const TArray<FMassUnitHandle>& UnitHandles)
+{
+    // Convert FMassUnitHandles to FMassEntityHandles
+    TArray<FMassEntityHandle> Entities;
+    Entities.Reserve(UnitHandles.Num());
+    
+    for (const FMassUnitHandle& UnitHandle : UnitHandles)
+    {
+        Entities.Add(UnitHandle.EntityHandle);
+    }
+    
+    // Call the internal function
+    UpdateUnitVisuals(Entities);
 }
 
 void UNiagaraUnitSystem::UpdateUnitVisuals(const TArray<FMassEntityHandle>& Entities)

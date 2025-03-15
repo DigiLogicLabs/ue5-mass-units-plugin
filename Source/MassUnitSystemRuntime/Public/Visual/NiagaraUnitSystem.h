@@ -29,12 +29,12 @@ public:
     /** Deinitialize the Niagara unit system */
     void Deinitialize();
     
-    /** Update unit visuals */
-    UFUNCTION(BlueprintCallable, Category = "Mass Unit System")
-    void UpdateUnitVisuals(const TArray<FMassUnitHandle>& UnitHandles);
+    /** Update unit visuals (internal, not exposed to Blueprint) */
+    void UpdateUnitVisuals(const TArray<FMassEntityHandle>& Entities);
     
-    /** Internal method to update unit visuals */
-    void UpdateUnitVisualsInternal(const TArray<FMassEntityHandle>& Entities);
+    /** Update unit visuals (Blueprint-friendly version) */
+    UFUNCTION(BlueprintCallable, Category = "Mass Unit System")
+    void UpdateUnitVisualsByHandles(const TArray<FMassUnitHandle>& UnitHandles);
     
     /** Set LOD level */
     UFUNCTION(BlueprintCallable, Category = "Mass Unit System")

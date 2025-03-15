@@ -3,7 +3,8 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "MassEntityTypes.h"
+#include "Entity/MassEntityFallback.h"
+
 #include "MassUnitEntityManager.generated.h"
 
 class UUnitTemplate;

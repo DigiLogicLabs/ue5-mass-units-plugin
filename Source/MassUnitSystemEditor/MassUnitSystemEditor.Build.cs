@@ -2,6 +2,7 @@
 
 using UnrealBuildTool;
 using System.IO;
+using System;
 
 public class MassUnitSystemEditor : ModuleRules
 {
@@ -9,9 +10,8 @@ public class MassUnitSystemEditor : ModuleRules
 	{
 		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
 		
-		// Always define WITH_GASCOMPANION=0 for now
-		// This can be changed to 1 if GASCompanion is available in the project
-		PublicDefinitions.Add("WITH_GASCOMPANION=0");
+		// Define WITH_GASCOMPANION=1 since we know it's available in this project
+		PublicDefinitions.Add("WITH_GASCOMPANION=1");
 		
 		PublicIncludePaths.AddRange(
 			new string[] {
@@ -33,13 +33,23 @@ public class MassUnitSystemEditor : ModuleRules
 				"Engine",
 				"InputCore",
 				"MassUnitSystemRuntime",
-				"MassEntity",
 				"Niagara",
 				"GameplayAbilities",
 				"GameplayTags"
 				// ... add other public dependencies that you statically link with here ...
 			}
 		);
+		
+		// Conditionally add MassEntity if available
+		try
+		{
+			PublicDependencyModuleNames.Add("MassEntity");
+		}
+		catch (Exception)
+		{
+			// MassEntity is not available, use the fallback
+			PublicDefinitions.Add("WITH_MASSENTITY=0");
+		}
 			
 		PrivateDependencyModuleNames.AddRange(
 			new string[]

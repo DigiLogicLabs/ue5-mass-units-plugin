@@ -1,14 +1,18 @@
 // Copyright Your Company. All Rights Reserved.
 
 #include "Core/MassUnitSubsystem.h"
-#include "MassEntitySubsystem.h"
 #include "Entity/MassUnitEntityManager.h"
+
+// Include MassEntity types or fallback
+#if WITH_MASSENTITY
+#include "MassEntitySubsystem.h"
+#endif
 #include "Navigation/FormationSystem.h"
 #include "Navigation/MassUnitNavigationSystem.h"
 #include "Visual/NiagaraUnitSystem.h"
 #include "Visual/UnitMeshPool.h"
 #include "Gameplay/GASUnitIntegration.h"
-#include "Gameplay/GASCompanionIntegration.h"
+#include "Gameplay/MassUnitBehaviorIntegration.h"
 #include "Gameplay/UnitGameplayEventSystem.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
@@ -22,7 +26,7 @@ UMassUnitSubsystem::UMassUnitSubsystem()
     , NiagaraSystem(nullptr)
     , MeshPool(nullptr)
     , GASIntegration(nullptr)
-    , GASCompanionIntegration(nullptr)
+    , BehaviorIntegration(nullptr)
     , GameplayEventSystem(nullptr)
 {
 }
@@ -115,15 +119,15 @@ void UMassUnitSubsystem::Initialize(FSubsystemCollectionBase& Collection)
         UE_LOG(LogTemp, Error, TEXT("MassUnitSubsystem: Failed to create GASIntegration"));
     }
     
-    // Create the GASCompanion Integration
-    GASCompanionIntegration = NewObject<UGASCompanionIntegration>(this);
-    if (GASCompanionIntegration && GASIntegration)
+    // Create the Behavior Integration
+    BehaviorIntegration = NewObject<UMassUnitBehaviorIntegration>(this);
+    if (BehaviorIntegration && GASIntegration)
     {
-        GASCompanionIntegration->Initialize(GASIntegration);
+        BehaviorIntegration->Initialize(GASIntegration);
     }
     else
     {
-        UE_LOG(LogTemp, Error, TEXT("MassUnitSubsystem: Failed to create GASCompanionIntegration"));
+        UE_LOG(LogTemp, Error, TEXT("MassUnitSubsystem: Failed to create BehaviorIntegration"));
     }
     
     // Create the Gameplay Event System
@@ -162,11 +166,11 @@ void UMassUnitSubsystem::Deinitialize()
         GameplayEventSystem = nullptr;
     }
     
-    // Clean up GASCompanion Integration
-    if (GASCompanionIntegration)
+    // Clean up Behavior Integration
+    if (BehaviorIntegration)
     {
-        GASCompanionIntegration->Deinitialize();
-        GASCompanionIntegration = nullptr;
+        BehaviorIntegration->Deinitialize();
+        BehaviorIntegration = nullptr;
     }
     
     // Clean up GAS Integration
@@ -282,9 +286,9 @@ UGASUnitIntegration* UMassUnitSubsystem::GetGASIntegration() const
     return GASIntegration;
 }
 
-UGASCompanionIntegration* UMassUnitSubsystem::GetGASCompanionIntegration() const
+UMassUnitBehaviorIntegration* UMassUnitSubsystem::GetBehaviorIntegration() const
 {
-    return GASCompanionIntegration;
+    return BehaviorIntegration;
 }
 
 UUnitGameplayEventSystem* UMassUnitSubsystem::GetGameplayEventSystem() const

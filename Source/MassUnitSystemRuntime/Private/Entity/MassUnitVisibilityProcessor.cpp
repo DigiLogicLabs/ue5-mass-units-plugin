@@ -1,7 +1,7 @@
 // Copyright Your Company. All Rights Reserved.
 
 #include "Entity/MassUnitVisibilityProcessor.h"
-#include "MassCommonFragments.h"
+#include "MassUnitCommonFragments.h"
 #include "Entity/MassUnitFragments.h"
 #include "MassEntityView.h"
 #include "MassLODFragments.h"

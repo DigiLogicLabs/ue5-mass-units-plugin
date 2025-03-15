@@ -2,7 +2,7 @@
 
 #include "Entity/UnitTemplate.h"
 #include "Entity/MassUnitFragments.h"
-#include "MassCommonFragments.h"
+#include "MassUnitCommonFragments.h"
 #include "MassEntityTemplateRegistry.h"
 
 UUnitTemplate::UUnitTemplate()

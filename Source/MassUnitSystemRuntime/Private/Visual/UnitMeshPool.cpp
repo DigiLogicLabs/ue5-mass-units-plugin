@@ -4,7 +4,7 @@
 #include "MassEntitySubsystem.h"
 #include "Entity/MassUnitFragments.h"
 #include "Entity/UnitTemplate.h"
-#include "MassCommonFragments.h"
+#include "MassUnitCommonFragments.h"
 #include "MassEntityView.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Engine/World.h"

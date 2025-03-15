@@ -2,16 +2,13 @@
 
 using UnrealBuildTool;
 using System.IO;
+using System;
 
 public class MassUnitSystemRuntime : ModuleRules
 {
 	public MassUnitSystemRuntime(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
-		
-		// Always define WITH_GASCOMPANION=0 for now
-		// This can be changed to 1 if GASCompanion is available in the project
-		PublicDefinitions.Add("WITH_GASCOMPANION=0");
 		
 		PublicIncludePaths.AddRange(
 			new string[] {
@@ -32,7 +29,6 @@ public class MassUnitSystemRuntime : ModuleRules
 				"CoreUObject",
 				"Engine",
 				"InputCore",
-				"MassEntity",
 				"Niagara",
 				"GameplayAbilities",
 				"GameplayTags",
@@ -54,6 +50,9 @@ public class MassUnitSystemRuntime : ModuleRules
 				// ... add private dependencies that you statically link with here ...	
 			}
 		);
+		
+		// We're not using MassEntity anymore
+		PublicDefinitions.Add("WITH_MASSENTITY=0");
 		
 		DynamicallyLoadedModuleNames.AddRange(
 			new string[]

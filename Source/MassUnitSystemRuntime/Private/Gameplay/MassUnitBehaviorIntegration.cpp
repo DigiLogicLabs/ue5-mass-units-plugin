@@ -1,10 +1,14 @@
 // Copyright Your Company. All Rights Reserved.
 
-#include "Gameplay/GASCompanionIntegration.h"
+#include "Gameplay/MassUnitBehaviorIntegration.h"
 #include "Gameplay/GASUnitIntegration.h"
-#include "MassEntitySubsystem.h"
 #include "Entity/MassUnitFragments.h"
+
+// Include MassEntity types or fallback
+#if WITH_MASSENTITY
+#include "MassEntitySubsystem.h"
 #include "MassEntityView.h"
+#endif
 #include "BehaviorTree/BehaviorTree.h"
 #include "BehaviorTree/BlackboardData.h"
 #include "BehaviorTree/BehaviorTreeComponent.h"
@@ -19,29 +23,23 @@
 #include "BehaviorTree/Blackboard/BlackboardKeyType_Enum.h"
 #include "BehaviorTree/Blackboard/BlackboardKeyType_String.h"
 
-// Include GASCompanion headers if available
-#if WITH_GASCOMPANION
-#include "GSCAbilitySystemComponent.h"
-#include "Abilities/GSCAbilitySet.h"
-#endif
-
-UGASCompanionIntegration::UGASCompanionIntegration()
+UMassUnitBehaviorIntegration::UMassUnitBehaviorIntegration()
     : GASIntegration(nullptr)
 {
 }
 
-UGASCompanionIntegration::~UGASCompanionIntegration()
+UMassUnitBehaviorIntegration::~UMassUnitBehaviorIntegration()
 {
 }
 
-void UGASCompanionIntegration::Initialize(UGASUnitIntegration* InGASIntegration)
+void UMassUnitBehaviorIntegration::Initialize(UGASUnitIntegration* InGASIntegration)
 {
     GASIntegration = InGASIntegration;
     
-    UE_LOG(LogTemp, Log, TEXT("GASCompanionIntegration: Initialized"));
+    UE_LOG(LogTemp, Log, TEXT("MassUnitBehaviorIntegration: Initialized"));
 }
 
-void UGASCompanionIntegration::Deinitialize()
+void UMassUnitBehaviorIntegration::Deinitialize()
 {
     // Clean up behavior tree components
     for (auto& Pair : EntityBTMap)
@@ -70,81 +68,16 @@ void UGASCompanionIntegration::Deinitialize()
     // Clear references
     GASIntegration = nullptr;
     
-    UE_LOG(LogTemp, Log, TEXT("GASCompanionIntegration: Deinitialized"));
+    UE_LOG(LogTemp, Log, TEXT("MassUnitBehaviorIntegration: Deinitialized"));
 }
 
-bool UGASCompanionIntegration::CreateGSCCompatibleUnit(FMassUnitHandle UnitHandle)
-{
-    return CreateGSCCompatibleUnitInternal(UnitHandle.EntityHandle);
-}
 
-bool UGASCompanionIntegration::CreateGSCCompatibleUnitInternal(FMassEntityHandle Entity)
-{
-#if WITH_GASCOMPANION
-    // Skip if not initialized
-    if (!GASIntegration)
-    {
-        return false;
-    }
-    
-    // Get ability system component
-    UGSCAbilitySystemComponent* ASC = Cast<UGSCAbilitySystemComponent>(GASIntegration->GetAbilitySystemForEntity(Entity));
-    if (!ASC)
-    {
-        return false;
-    }
-    
-    // In a real implementation, we would set up GASCompanion-specific components and data
-    // For this example, we'll just log that we're creating a GSC-compatible unit
-    UE_LOG(LogTemp, Log, TEXT("GASCompanionIntegration: Created GSC-compatible unit for entity %s"), *Entity.ToString());
-    
-    return true;
-#else
-    UE_LOG(LogTemp, Warning, TEXT("GASCompanionIntegration: GASCompanion is not available"));
-    return false;
-#endif
-}
-
-bool UGASCompanionIntegration::ApplyGSCAbilitySet(FMassUnitHandle UnitHandle, UGSCAbilitySet* AbilitySet)
-{
-    return ApplyGSCAbilitySetInternal(UnitHandle.EntityHandle, AbilitySet);
-}
-
-bool UGASCompanionIntegration::ApplyGSCAbilitySetInternal(FMassEntityHandle Entity, UGSCAbilitySet* AbilitySet)
-{
-#if WITH_GASCOMPANION
-    // Skip if not initialized
-    if (!GASIntegration || !AbilitySet)
-    {
-        return false;
-    }
-    
-    // Get ability system component
-    UGSCAbilitySystemComponent* ASC = Cast<UGSCAbilitySystemComponent>(GASIntegration->GetAbilitySystemForEntity(Entity));
-    if (!ASC)
-    {
-        return false;
-    }
-    
-    // Apply ability set
-    FGSCAbilitySetHandle AbilitySetHandle;
-    AbilitySet->GiveToAbilitySystem(ASC, &AbilitySetHandle, nullptr);
-    
-    UE_LOG(LogTemp, Log, TEXT("GASCompanionIntegration: Applied ability set to entity %s"), *Entity.ToString());
-    
-    return true;
-#else
-    UE_LOG(LogTemp, Warning, TEXT("GASCompanionIntegration: GASCompanion is not available"));
-    return false;
-#endif
-}
-
-bool UGASCompanionIntegration::SetBehaviorTree(FMassUnitHandle UnitHandle, UBehaviorTree* BehaviorTree, UBlackboardData* BlackboardData)
+bool UMassUnitBehaviorIntegration::SetBehaviorTree(FMassUnitHandle UnitHandle, UBehaviorTree* BehaviorTree, UBlackboardData* BlackboardData)
 {
     return SetBehaviorTreeInternal(UnitHandle.EntityHandle, BehaviorTree, BlackboardData);
 }
 
-bool UGASCompanionIntegration::SetBehaviorTreeInternal(FMassEntityHandle Entity, UBehaviorTree* BehaviorTree, UBlackboardData* BlackboardData)
+bool UMassUnitBehaviorIntegration::SetBehaviorTreeInternal(FMassEntityHandle Entity, UBehaviorTree* BehaviorTree, UBlackboardData* BlackboardData)
 {
     // Skip if not initialized
     if (!GASIntegration || !BehaviorTree || !BlackboardData)
@@ -162,17 +95,17 @@ bool UGASCompanionIntegration::SetBehaviorTreeInternal(FMassEntityHandle Entity,
     // Start behavior tree
     BTComp->StartTree(*BehaviorTree);
     
-    UE_LOG(LogTemp, Log, TEXT("GASCompanionIntegration: Set behavior tree for entity %s"), *Entity.ToString());
+    UE_LOG(LogTemp, Log, TEXT("MassUnitBehaviorIntegration: Set behavior tree for entity %s"), *Entity.ToString());
     
     return true;
 }
 
-bool UGASCompanionIntegration::ExecuteBTTask(FMassUnitHandle UnitHandle, FGameplayTag TaskTag)
+bool UMassUnitBehaviorIntegration::ExecuteBTTask(FMassUnitHandle UnitHandle, FGameplayTag TaskTag)
 {
     return ExecuteBTTaskInternal(UnitHandle.EntityHandle, TaskTag);
 }
 
-bool UGASCompanionIntegration::ExecuteBTTaskInternal(FMassEntityHandle Entity, FGameplayTag TaskTag)
+bool UMassUnitBehaviorIntegration::ExecuteBTTaskInternal(FMassEntityHandle Entity, FGameplayTag TaskTag)
 {
     // Skip if not initialized
     if (!GASIntegration)
@@ -189,7 +122,7 @@ bool UGASCompanionIntegration::ExecuteBTTaskInternal(FMassEntityHandle Entity, F
     
     // In a real implementation, we would find and execute the task by tag
     // For this example, we'll just log that we're executing a task
-    UE_LOG(LogTemp, Log, TEXT("GASCompanionIntegration: Executing BT task %s for entity %s"), 
+    UE_LOG(LogTemp, Log, TEXT("MassUnitBehaviorIntegration: Executing BT task %s for entity %s"), 
         *TaskTag.ToString(), *Entity.ToString());
     
     // Update blackboard from entity data
@@ -198,7 +131,7 @@ bool UGASCompanionIntegration::ExecuteBTTaskInternal(FMassEntityHandle Entity, F
     return true;
 }
 
-UBehaviorTreeComponent* UGASCompanionIntegration::CreateBehaviorTreeForEntity(FMassEntityHandle Entity, UBehaviorTree* BehaviorTree, UBlackboardData* BlackboardData)
+UBehaviorTreeComponent* UMassUnitBehaviorIntegration::CreateBehaviorTreeForEntity(FMassEntityHandle Entity, UBehaviorTree* BehaviorTree, UBlackboardData* BlackboardData)
 {
     // Skip if already exists
     if (UBehaviorTreeComponent* ExistingBTComp = EntityBTMap.FindRef(Entity))
@@ -210,7 +143,7 @@ UBehaviorTreeComponent* UGASCompanionIntegration::CreateBehaviorTreeForEntity(FM
     UBlackboardComponent* BBComp = NewObject<UBlackboardComponent>(this);
     if (!BBComp)
     {
-        UE_LOG(LogTemp, Error, TEXT("GASCompanionIntegration: Failed to create blackboard component"));
+        UE_LOG(LogTemp, Error, TEXT("MassUnitBehaviorIntegration: Failed to create blackboard component"));
         return nullptr;
     }
     
@@ -224,7 +157,7 @@ UBehaviorTreeComponent* UGASCompanionIntegration::CreateBehaviorTreeForEntity(FM
     UBehaviorTreeComponent* BTComp = NewObject<UBehaviorTreeComponent>(this);
     if (!BTComp)
     {
-        UE_LOG(LogTemp, Error, TEXT("GASCompanionIntegration: Failed to create behavior tree component"));
+        UE_LOG(LogTemp, Error, TEXT("MassUnitBehaviorIntegration: Failed to create behavior tree component"));
         BBComp->RemoveFromRoot();
         return nullptr;
     }
@@ -245,7 +178,7 @@ UBehaviorTreeComponent* UGASCompanionIntegration::CreateBehaviorTreeForEntity(FM
     return BTComp;
 }
 
-void UGASCompanionIntegration::UpdateBlackboardFromEntity(FMassEntityHandle Entity)
+void UMassUnitBehaviorIntegration::UpdateBlackboardFromEntity(FMassEntityHandle Entity)
 {
     // Skip if not initialized
     if (!GASIntegration)
@@ -349,7 +282,7 @@ void UGASCompanionIntegration::UpdateBlackboardFromEntity(FMassEntityHandle Enti
     }
 }
 
-void UGASCompanionIntegration::UpdateEntityFromBlackboard(FMassEntityHandle Entity)
+void UMassUnitBehaviorIntegration::UpdateEntityFromBlackboard(FMassEntityHandle Entity)
 {
     // Skip if not initialized
     if (!GASIntegration)

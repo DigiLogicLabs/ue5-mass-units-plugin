@@ -4,7 +4,7 @@
 #include "MassEntitySubsystem.h"
 #include "Entity/UnitTemplate.h"
 #include "Entity/MassUnitFragments.h"
-#include "MassCommonFragments.h"
+#include "MassUnitCommonFragments.h"
 #include "MassEntityView.h"
 #include "MassSpawnerTypes.h"
 #include "GameplayTagContainer.h"

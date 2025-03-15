@@ -4,16 +4,22 @@
 
 #include "CoreMinimal.h"
 #include "Subsystems/GameInstanceSubsystem.h"
-#include "MassUnitSubsystem.generated.h"
 
+// Include MassEntity types or fallback
+#if WITH_MASSENTITY
 class UMassEntitySubsystem;
+#else
+#include "Entity/MassEntityFallback.h"
+#endif
+
+#include "MassUnitSubsystem.generated.h"
 class UMassUnitEntityManager;
 class UFormationSystem;
 class UMassUnitNavigationSystem;
 class UNiagaraUnitSystem;
 class UUnitMeshPool;
 class UGASUnitIntegration;
-class UGASCompanionIntegration;
+class UMassUnitBehaviorIntegration;
 class UUnitGameplayEventSystem;
 
 /**
@@ -61,9 +67,9 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Mass Unit System")
     UGASUnitIntegration* GetGASIntegration() const;
     
-    /** Get the GASCompanion integration */
+    /** Get the behavior integration */
     UFUNCTION(BlueprintCallable, Category = "Mass Unit System")
-    UGASCompanionIntegration* GetGASCompanionIntegration() const;
+    UMassUnitBehaviorIntegration* GetBehaviorIntegration() const;
     
     /** Get the gameplay event system */
     UFUNCTION(BlueprintCallable, Category = "Mass Unit System")
@@ -101,9 +107,9 @@ private:
     UPROPERTY(Transient)
     UGASUnitIntegration* GASIntegration;
     
-    /** GASCompanion integration */
+    /** Behavior integration */
     UPROPERTY(Transient)
-    UGASCompanionIntegration* GASCompanionIntegration;
+    UMassUnitBehaviorIntegration* BehaviorIntegration;
     
     /** Gameplay event system */
     UPROPERTY(Transient)

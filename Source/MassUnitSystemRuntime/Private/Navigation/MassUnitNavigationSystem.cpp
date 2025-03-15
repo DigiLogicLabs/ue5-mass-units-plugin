@@ -3,7 +3,7 @@
 #include "Navigation/MassUnitNavigationSystem.h"
 #include "MassEntitySubsystem.h"
 #include "Entity/MassUnitFragments.h"
-#include "MassCommonFragments.h"
+#include "MassUnitCommonFragments.h"
 #include "MassEntityView.h"
 #include "NavigationSystem.h"
 #include "NavigationPath.h"

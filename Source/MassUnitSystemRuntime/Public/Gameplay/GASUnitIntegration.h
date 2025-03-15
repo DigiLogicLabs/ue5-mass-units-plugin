@@ -3,17 +3,19 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "MassEntityTypes.h"
 #include "Entity/MassUnitEntityManager.h"
 #include "GameplayAbilitySpec.h"
+#include "Abilities/GameplayAbility.h"
+
+// Using native GAS classes
+
 #include "GASUnitIntegration.generated.h"
 
 class UAbilitySystemComponent;
 class UGameplayAbility;
 class UGameplayEffect;
 class UMassEntitySubsystem;
-class UGSCAbilitySystemComponent;
-class UGSCAttributeSet;
+class UAttributeSet;
 
 /**
  * Bridge between Mass Entity System and Gameplay Ability System
@@ -84,13 +86,13 @@ private:
     UMassEntitySubsystem* EntitySubsystem;
     
     /** Map of entity handles to ability system components */
-    TMap<FMassEntityHandle, UGSCAbilitySystemComponent*> EntityASCMap;
+    TMap<FMassEntityHandle, UAbilitySystemComponent*> EntityASCMap;
     
     /** Map of entity handles to attribute sets */
-    TMap<FMassEntityHandle, UGSCAttributeSet*> EntityAttributeSetMap;
+    TMap<FMassEntityHandle, UAttributeSet*> EntityAttributeSetMap;
     
     /** Create an ability system component for an entity */
-    UGSCAbilitySystemComponent* CreateAbilitySystemForEntity(FMassEntityHandle Entity);
+    UAbilitySystemComponent* CreateAbilitySystemForEntity(FMassEntityHandle Entity);
     
     /** Sync entity data with ability system */
     void SyncEntityWithAbilitySystem(FMassEntityHandle Entity);

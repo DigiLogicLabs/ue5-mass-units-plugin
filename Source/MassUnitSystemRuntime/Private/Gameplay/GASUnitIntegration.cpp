@@ -1,17 +1,19 @@
 // Copyright Your Company. All Rights Reserved.
 
 #include "Gameplay/GASUnitIntegration.h"
-#include "MassEntitySubsystem.h"
 #include "Entity/MassUnitFragments.h"
+
+// Include MassEntity types or fallback
+#if WITH_MASSENTITY
+#include "MassEntitySubsystem.h"
 #include "MassEntityView.h"
+#endif
 #include "AbilitySystemComponent.h"
 #include "GameplayAbility.h"
 #include "GameplayEffect.h"
 #include "GameplayEffectTypes.h"
 #include "Abilities/GameplayAbilityTypes.h"
-#include "GSCAbilitySystemComponent.h"
-#include "GSCAttributeSet.h"
-#include "Abilities/GSCGameplayAbility.h"
+#include "AttributeSet.h"
 #include "Engine/World.h"
 
 UGASUnitIntegration::UGASUnitIntegration()
@@ -35,7 +37,7 @@ void UGASUnitIntegration::Deinitialize()
     // Clean up ability system components
     for (auto& Pair : EntityASCMap)
     {
-        UGSCAbilitySystemComponent* ASC = Pair.Value;
+        UAbilitySystemComponent* ASC = Pair.Value;
         if (ASC)
         {
             ASC->RemoveFromRoot();
@@ -45,7 +47,7 @@ void UGASUnitIntegration::Deinitialize()
     // Clean up attribute sets
     for (auto& Pair : EntityAttributeSetMap)
     {
-        UGSCAttributeSet* AttributeSet = Pair.Value;
+        UAttributeSet* AttributeSet = Pair.Value;
         if (AttributeSet)
         {
             AttributeSet->RemoveFromRoot();
@@ -65,7 +67,7 @@ void UGASUnitIntegration::Deinitialize()
 UAbilitySystemComponent* UGASUnitIntegration::GetAbilitySystemForEntity(FMassEntityHandle Entity)
 {
     // Check if entity already has an ASC
-    if (UGSCAbilitySystemComponent** ASCPtr = EntityASCMap.Find(Entity))
+    if (UAbilitySystemComponent** ASCPtr = EntityASCMap.Find(Entity))
     {
         return *ASCPtr;
     }
@@ -202,7 +204,7 @@ void UGASUnitIntegration::UpdateAttributes(FMassEntityHandle Entity, const TMap<
     SyncAbilitySystemWithEntity(Entity);
 }
 
-UGSCAbilitySystemComponent* UGASUnitIntegration::CreateAbilitySystemForEntity(FMassEntityHandle Entity)
+UAbilitySystemComponent* UGASUnitIntegration::CreateAbilitySystemForEntity(FMassEntityHandle Entity)
 {
     // Skip if not initialized
     if (!EntitySubsystem)
@@ -220,7 +222,7 @@ UGSCAbilitySystemComponent* UGASUnitIntegration::CreateAbilitySystemForEntity(FM
     }
     
     // Create ability system component
-    UGSCAbilitySystemComponent* ASC = NewObject<UGSCAbilitySystemComponent>(this);
+    UAbilitySystemComponent* ASC = NewObject<UAbilitySystemComponent>(this);
     if (!ASC)
     {
         UE_LOG(LogTemp, Error, TEXT("GASUnitIntegration: Failed to create ability system component"));
@@ -231,7 +233,7 @@ UGSCAbilitySystemComponent* UGASUnitIntegration::CreateAbilitySystemForEntity(FM
     ASC->AddToRoot();
     
     // Create attribute set
-    UGSCAttributeSet* AttributeSet = NewObject<UGSCAttributeSet>(ASC);
+    UAttributeSet* AttributeSet = NewObject<UAttributeSet>(ASC);
     if (AttributeSet)
     {
         // Keep attribute set alive
@@ -288,7 +290,7 @@ void UGASUnitIntegration::SyncEntityWithAbilitySystem(FMassEntityHandle Entity)
     FMassUnitAbilityFragment& AbilityFragment = EntityView.GetFragmentData<FMassUnitAbilityFragment>();
     
     // Get ability system component
-    UGSCAbilitySystemComponent* ASC = EntityASCMap.FindRef(Entity);
+    UAbilitySystemComponent* ASC = EntityASCMap.FindRef(Entity);
     if (!ASC)
     {
         return;
@@ -312,7 +314,7 @@ void UGASUnitIntegration::SyncEntityWithAbilitySystem(FMassEntityHandle Entity)
     
     // Update attribute values
     AbilityFragment.AttributeValues.Empty();
-    if (UGSCAttributeSet* AttributeSet = EntityAttributeSetMap.FindRef(Entity))
+    if (UAttributeSet* AttributeSet = EntityAttributeSetMap.FindRef(Entity))
     {
         // In a real implementation, we would iterate through all attributes in the attribute set
         // For this example, we'll just add some common attributes
@@ -370,7 +372,7 @@ void UGASUnitIntegration::SyncAbilitySystemWithEntity(FMassEntityHandle Entity)
     const FMassUnitAbilityFragment& AbilityFragment = EntityView.GetFragmentData<FMassUnitAbilityFragment>();
     
     // Get ability system component
-    UGSCAbilitySystemComponent* ASC = EntityASCMap.FindRef(Entity);
+    UAbilitySystemComponent* ASC = EntityASCMap.FindRef(Entity);
     if (!ASC)
     {
         return;

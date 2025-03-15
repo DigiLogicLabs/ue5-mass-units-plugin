@@ -3,7 +3,7 @@
 #include "Navigation/FormationSystem.h"
 #include "MassEntitySubsystem.h"
 #include "Entity/MassUnitFragments.h"
-#include "MassCommonFragments.h"
+#include "MassUnitCommonFragments.h"
 #include "MassEntityView.h"
 #include "Engine/World.h"
 

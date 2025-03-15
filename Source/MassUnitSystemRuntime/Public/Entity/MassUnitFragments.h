@@ -3,10 +3,17 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "MassEntityTypes.h"
 #include "GameplayTagContainer.h"
 #include "GameplayAbilitySpec.h"
 #include "GameplayEffectTypes.h"
+
+// Include MassEntity types or fallback
+#if WITH_MASSENTITY
+#include "MassEntityTypes.h"
+#else
+#include "Entity/MassEntityFallback.h"
+#endif
+
 #include "MassUnitFragments.generated.h"
 
 /** Enum for unit states */
