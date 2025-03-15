@@ -12,14 +12,27 @@ Before integrating the plugin, ensure you have:
 
 ## Step 1: Install the Plugin
 
-### Option 1: Copy the Plugin to Your Project
+### Option 1: Clone Directly into Your Project (Recommended)
 
 1. Create a `Plugins` directory in your project root if it doesn't already exist
-2. Copy the entire `MassUnitSystem` plugin folder into your project's `Plugins` directory
-3. Open your project in Unreal Engine
-4. The plugin should be automatically detected and compiled
+2. Clone the repository directly into your Plugins folder:
+   ```
+   cd YourProject/Plugins
+   git clone https://github.com/DigiLogicLabs/ue5-mass-units-plugin.git MassUnitSystem
+   ```
+3. Right-click on your .uproject file and select "Generate Visual Studio project files"
+4. Open your project in Unreal Engine
+5. The plugin should be automatically detected and compiled
 
-### Option 2: Install from Source
+### Option 2: Download and Copy
+
+1. Download the plugin repository as a ZIP file
+2. Extract it into your project's `Plugins` directory, renaming it to "MassUnitSystem"
+3. Right-click on your .uproject file and select "Generate Visual Studio project files"
+4. Open your project in Unreal Engine
+5. The plugin should be automatically detected and compiled
+
+### Option 3: Build from Source
 
 1. Clone or download the plugin repository
 2. Navigate to the plugin directory
