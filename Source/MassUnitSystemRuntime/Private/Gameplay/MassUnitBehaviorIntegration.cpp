@@ -9,6 +9,7 @@
 #include "MassEntitySubsystem.h"
 #include "MassEntityView.h"
 #endif
+#include "AbilitySystemGlobals.h" // Added for FGameplayAttribute
 #include "BehaviorTree/BehaviorTree.h"
 #include "BehaviorTree/BlackboardData.h"
 #include "BehaviorTree/BehaviorTreeComponent.h"
@@ -260,21 +261,21 @@ void UMassUnitBehaviorIntegration::UpdateBlackboardFromEntity(FMassEntityHandle 
         const FMassUnitAbilityFragment& AbilityFragment = EntityView.GetFragmentData<FMassUnitAbilityFragment>();
         
         // Health
-        FGameplayAttribute HealthAttribute = FGameplayAttribute::GetAttributeFromString("Health");
+        FGameplayAttribute HealthAttribute = UAbilitySystemGlobals::Get().FindAttributeByName(FName("Health"));
         if (HealthAttribute.IsValid() && AbilityFragment.AttributeValues.Contains(HealthAttribute))
         {
             BBComp->SetValueAsFloat("Health", AbilityFragment.AttributeValues[HealthAttribute]);
         }
         
         // Damage
-        FGameplayAttribute DamageAttribute = FGameplayAttribute::GetAttributeFromString("Damage");
+        FGameplayAttribute DamageAttribute = UAbilitySystemGlobals::Get().FindAttributeByName(FName("Damage"));
         if (DamageAttribute.IsValid() && AbilityFragment.AttributeValues.Contains(DamageAttribute))
         {
             BBComp->SetValueAsFloat("Damage", AbilityFragment.AttributeValues[DamageAttribute]);
         }
         
         // Speed
-        FGameplayAttribute SpeedAttribute = FGameplayAttribute::GetAttributeFromString("Speed");
+        FGameplayAttribute SpeedAttribute = UAbilitySystemGlobals::Get().FindAttributeByName(FName("Speed"));
         if (SpeedAttribute.IsValid() && AbilityFragment.AttributeValues.Contains(SpeedAttribute))
         {
             BBComp->SetValueAsFloat("Speed", AbilityFragment.AttributeValues[SpeedAttribute]);

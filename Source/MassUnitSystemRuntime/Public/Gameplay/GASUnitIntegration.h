@@ -14,7 +14,12 @@
 class UAbilitySystemComponent;
 class UGameplayAbility;
 class UGameplayEffect;
+// Forward declare UMassEntitySubsystem if not including the full header
+#if !WITH_MASSENTITY
 class UMassEntitySubsystem;
+#else
+#include "MassEntitySubsystem.h" // Include full definition when MassEntity is enabled
+#endif
 class UAttributeSet;
 
 /**

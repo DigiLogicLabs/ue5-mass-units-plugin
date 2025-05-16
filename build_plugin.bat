@@ -20,7 +20,9 @@ echo Building plugin at %PLUGIN_PATH% for %TARGET_PLATFORM% in %BUILD_CONFIG% co
 REM Check if build was successful
 if %ERRORLEVEL% NEQ 0 (
     echo Build failed with error code %ERRORLEVEL%
+    pause
     exit /b %ERRORLEVEL%
 ) else (
     echo Build completed successfully!
+    pause
 )

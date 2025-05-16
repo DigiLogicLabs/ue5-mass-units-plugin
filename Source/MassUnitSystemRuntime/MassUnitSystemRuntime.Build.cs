@@ -34,7 +34,21 @@ public class MassUnitSystemRuntime : ModuleRules
 				"GameplayTags",
 				"GameplayTasks",
 				"NavigationSystem",
-				"AIModule"
+				"AIModule",
+				"MassEntity",
+				"MassCommon",
+				"MassActors",
+				"MassGameplay",
+				"MassSignals",
+				"MassSpawner",
+				"MassRepresentation",
+				"MassNavigation",
+				"MassAIBehavior",
+				"MassZoneGraphNavigation",
+				"MassGameplayExternalTraits",
+				"MassMovement",
+				"MassSmartObjects",
+				"MassReplication"
 				// ... add other public dependencies that you statically link with here ...
 			}
 		);
@@ -50,9 +64,6 @@ public class MassUnitSystemRuntime : ModuleRules
 				// ... add private dependencies that you statically link with here ...	
 			}
 		);
-		
-		// We're not using MassEntity anymore
-		PublicDefinitions.Add("WITH_MASSENTITY=0");
 		
 		DynamicallyLoadedModuleNames.AddRange(
 			new string[]

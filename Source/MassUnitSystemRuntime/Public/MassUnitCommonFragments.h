@@ -22,7 +22,7 @@
  * Velocity fragment for Mass units
  */
 USTRUCT()
-struct MASSUNITSYSTEMRUNTIME_API FMassVelocityFragment
+struct MASSUNITSYSTEMRUNTIME_API FMassUnitVelocityFragment // Renamed to avoid conflict
 {
     GENERATED_BODY()
 

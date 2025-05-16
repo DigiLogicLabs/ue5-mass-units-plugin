@@ -11,19 +11,4 @@
 
 #include "MassUnitVelocityFragment.generated.h"
 
-/**
- * Velocity fragment for Mass units
- */
-USTRUCT()
-struct MASSUNITSYSTEMRUNTIME_API FMassUnitVelocityFragment
-{
-    GENERATED_BODY()
-
-    /** Current velocity */
-    UPROPERTY(EditAnywhere, Category = "Mass Unit")
-    FVector Value = FVector::ZeroVector;
-
-    /** Maximum speed */
-    UPROPERTY(EditAnywhere, Category = "Mass Unit")
-    float MaxSpeed = 600.0f;
-};
+// Definition moved to MassUnitCommonFragments.h to avoid duplication
