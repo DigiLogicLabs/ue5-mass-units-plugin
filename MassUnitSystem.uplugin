@@ -37,6 +37,10 @@
 			"Enabled": true
 		},
 		{
+			"Name": "MassGameplay",
+			"Enabled": true
+		},
+		{
 			"Name": "GASCompanion",
 			"Enabled": true,
 			"Optional": true
