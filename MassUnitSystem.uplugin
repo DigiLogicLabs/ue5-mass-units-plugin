@@ -3,6 +3,7 @@
 	"Version": 1,
 	"VersionName": "1.0",
 	"FriendlyName": "Mass Unit System",
+	"EngineVersion": "5.6.0",
 	"Description": "High-performance large-scale unit system with GAS integration",
 	"Category": "Gameplay",
 	"CreatedBy": "Your Company",
