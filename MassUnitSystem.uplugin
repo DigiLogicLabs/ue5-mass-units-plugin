@@ -37,13 +37,25 @@
 			"Enabled": true
 		},
 		{
-			"Name": "MassGameplay",
-			"Enabled": true
-		},
-		{
 			"Name": "GASCompanion",
 			"Enabled": true,
 			"Optional": true
+		},
+		{
+			"Name": "MassAI",
+			"Enabled": true
+		},
+		{
+			"Name": "MassNavigation",
+			"Enabled": true
+		},
+		{
+			"Name": "MassZoneGraphNavigation",
+			"Enabled": true
+		},
+		{
+			"Name": "MassAIBehavior",
+			"Enabled": true
 		}
 	]
 }

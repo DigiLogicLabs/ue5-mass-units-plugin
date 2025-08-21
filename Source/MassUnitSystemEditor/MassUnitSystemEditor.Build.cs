@@ -43,12 +43,12 @@ public class MassUnitSystemEditor : ModuleRules
 		// Conditionally add MassEntity if available
 		try
 		{
-			PublicDependencyModuleNames.Add("MassEntity");
+			// MassEntity is now part of the engine in UE5.6+
 		}
 		catch (Exception)
 		{
 			// MassEntity is not available, use the fallback
-			PublicDefinitions.Add("WITH_MASSENTITY=0");
+			PublicDefinitions.Add("WITH_MASSENTITY=0"); // No longer needed, kept for legacy compatibility
 		}
 			
 		PrivateDependencyModuleNames.AddRange(
