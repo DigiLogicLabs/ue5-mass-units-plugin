@@ -1,4 +1,4 @@
-// Copyright Your Company. All Rights Reserved.
+// Copyright Digi Logic Labs LLC. All Rights Reserved.
 
 #include "Core/MassUnitSubsystem.h"
 #include "Entity/MassUnitEntityManager.h"
@@ -38,7 +38,7 @@ UMassUnitSubsystem::~UMassUnitSubsystem()
 void UMassUnitSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
     // Get the Mass Entity Subsystem
-    EntitySubsystem = Collection.InitializeDependency<UMassEntitySubsystem>();
+    EntitySubsystem = Collection.InitializeDependency<UMassUnitEntitySubsystem>();
     if (!EntitySubsystem)
     {
         UE_LOG(LogTemp, Error, TEXT("MassUnitSubsystem: Failed to get MassEntitySubsystem"));
@@ -144,8 +144,7 @@ void UMassUnitSubsystem::Initialize(FSubsystemCollectionBase& Collection)
     // Register tick function
     if (UGameInstance* GameInstance = GetGameInstance())
     {
-        TickDelegateHandle = GameInstance->GetTimerManager().SetTimerForNextTick(
-            FTimerDelegate::CreateUObject(this, &UMassUnitSubsystem::Tick, 0.0f));
+    GameInstance->GetTimerManager().SetTimerForNextTick(FTimerDelegate::CreateUObject(this, &UMassUnitSubsystem::Tick, 0.0f));
     }
     
     UE_LOG(LogTemp, Log, TEXT("MassUnitSubsystem: Initialized"));
@@ -225,8 +224,7 @@ void UMassUnitSubsystem::Tick(float DeltaTime)
     // Register for next tick
     if (UGameInstance* GameInstance = GetGameInstance())
     {
-        TickDelegateHandle = GameInstance->GetTimerManager().SetTimerForNextTick(
-            FTimerDelegate::CreateUObject(this, &UMassUnitSubsystem::Tick, 0.0f));
+    GameInstance->GetTimerManager().SetTimerForNextTick(FTimerDelegate::CreateUObject(this, &UMassUnitSubsystem::Tick, 0.0f));
     }
     
     // Update Formation System
@@ -245,14 +243,14 @@ void UMassUnitSubsystem::Tick(float DeltaTime)
     if (NiagaraSystem && UnitManager)
     {
         // Get all units
-        TArray<FMassEntityHandle> AllUnits;
+    TArray<FMassUnitEntityHandle> AllUnits;
         for (auto& Pair : UnitManager->GetUnitTypeMap())
         {
             AllUnits.Append(Pair.Value);
         }
         
         // Update visuals for units
-        NiagaraSystem->UpdateUnitVisualsInternal(AllUnits);
+    NiagaraSystem->UpdateUnitVisuals(AllUnits);
     }
 }
 

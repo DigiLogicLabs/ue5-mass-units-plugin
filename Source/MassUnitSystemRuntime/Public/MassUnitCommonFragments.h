@@ -1,4 +1,4 @@
-// Copyright Your Company. All Rights Reserved.
+// Copyright Digi Logic Labs LLC. All Rights Reserved.
 
 #pragma once
 
@@ -18,19 +18,42 @@
 
 #include "MassUnitCommonFragments.generated.h"
 
+
 /**
  * Velocity fragment for Mass units
  */
 USTRUCT()
-struct MASSUNITSYSTEMRUNTIME_API FMassUnitVelocityFragment // Renamed to avoid conflict
+struct MASSUNITSYSTEMRUNTIME_API FMassUnitVelocityFragment
 {
     GENERATED_BODY()
 
-    /** Current velocity */
     UPROPERTY(EditAnywhere, Category = "Mass Unit")
     FVector Value = FVector::ZeroVector;
 
-    /** Maximum speed */
     UPROPERTY(EditAnywhere, Category = "Mass Unit")
     float MaxSpeed = 600.0f;
+};
+
+/**
+ * Force fragment for Mass units
+ */
+USTRUCT()
+struct MASSUNITSYSTEMRUNTIME_API FMassUnitForceFragment
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, Category = "Mass Unit")
+    FVector Value = FVector::ZeroVector;
+};
+
+/**
+ * LookAt fragment for Mass units
+ */
+USTRUCT()
+struct MASSUNITSYSTEMRUNTIME_API FMassUnitLookAtFragment
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, Category = "Mass Unit")
+    FVector Direction = FVector::ForwardVector;
 };

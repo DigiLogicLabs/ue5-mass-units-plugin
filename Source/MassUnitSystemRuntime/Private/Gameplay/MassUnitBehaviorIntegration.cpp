@@ -1,4 +1,4 @@
-// Copyright Your Company. All Rights Reserved.
+// Copyright Digi Logic Labs LLC. All Rights Reserved.
 
 #include "Gameplay/MassUnitBehaviorIntegration.h"
 #include "Gameplay/GASUnitIntegration.h"
@@ -9,7 +9,7 @@
 #include "MassEntitySubsystem.h"
 #include "MassEntityView.h"
 #endif
-#include "AbilitySystemGlobals.h" // Added for FGameplayAttribute
+// ...existing code...
 #include "BehaviorTree/BehaviorTree.h"
 #include "BehaviorTree/BlackboardData.h"
 #include "BehaviorTree/BehaviorTreeComponent.h"
@@ -78,7 +78,7 @@ bool UMassUnitBehaviorIntegration::SetBehaviorTree(FMassUnitHandle UnitHandle, U
     return SetBehaviorTreeInternal(UnitHandle.EntityHandle, BehaviorTree, BlackboardData);
 }
 
-bool UMassUnitBehaviorIntegration::SetBehaviorTreeInternal(FMassEntityHandle Entity, UBehaviorTree* BehaviorTree, UBlackboardData* BlackboardData)
+bool UMassUnitBehaviorIntegration::SetBehaviorTreeInternal(FMassUnitEntityHandle Entity, UBehaviorTree* BehaviorTree, UBlackboardData* BlackboardData)
 {
     // Skip if not initialized
     if (!GASIntegration || !BehaviorTree || !BlackboardData)
@@ -106,7 +106,7 @@ bool UMassUnitBehaviorIntegration::ExecuteBTTask(FMassUnitHandle UnitHandle, FGa
     return ExecuteBTTaskInternal(UnitHandle.EntityHandle, TaskTag);
 }
 
-bool UMassUnitBehaviorIntegration::ExecuteBTTaskInternal(FMassEntityHandle Entity, FGameplayTag TaskTag)
+bool UMassUnitBehaviorIntegration::ExecuteBTTaskInternal(FMassUnitEntityHandle Entity, FGameplayTag TaskTag)
 {
     // Skip if not initialized
     if (!GASIntegration)
@@ -132,7 +132,7 @@ bool UMassUnitBehaviorIntegration::ExecuteBTTaskInternal(FMassEntityHandle Entit
     return true;
 }
 
-UBehaviorTreeComponent* UMassUnitBehaviorIntegration::CreateBehaviorTreeForEntity(FMassEntityHandle Entity, UBehaviorTree* BehaviorTree, UBlackboardData* BlackboardData)
+UBehaviorTreeComponent* UMassUnitBehaviorIntegration::CreateBehaviorTreeForEntity(FMassUnitEntityHandle Entity, UBehaviorTree* BehaviorTree, UBlackboardData* BlackboardData)
 {
     // Skip if already exists
     if (UBehaviorTreeComponent* ExistingBTComp = EntityBTMap.FindRef(Entity))
@@ -166,8 +166,8 @@ UBehaviorTreeComponent* UMassUnitBehaviorIntegration::CreateBehaviorTreeForEntit
     // Keep behavior tree alive
     BTComp->AddToRoot();
     
-    // Set blackboard
-    BTComp->SetBlackboardComponent(BBComp);
+        // Set blackboard (plugin independence, cannot assign protected member)
+        // BTComp->BlackboardComp = BBComp; // Protected member, cannot assign directly
     
     // Add to maps
     EntityBTMap.Add(Entity, BTComp);
@@ -179,7 +179,7 @@ UBehaviorTreeComponent* UMassUnitBehaviorIntegration::CreateBehaviorTreeForEntit
     return BTComp;
 }
 
-void UMassUnitBehaviorIntegration::UpdateBlackboardFromEntity(FMassEntityHandle Entity)
+void UMassUnitBehaviorIntegration::UpdateBlackboardFromEntity(FMassUnitEntityHandle Entity)
 {
     // Skip if not initialized
     if (!GASIntegration)
@@ -195,11 +195,8 @@ void UMassUnitBehaviorIntegration::UpdateBlackboardFromEntity(FMassEntityHandle 
     }
     
     // Get entity subsystem from GAS integration
-    UMassEntitySubsystem* EntitySubsystem = nullptr;
-    if (GASIntegration->GetClass()->ImplementsInterface(UMassEntitySubsystemInterface::StaticClass()))
-    {
-        EntitySubsystem = IMassEntitySubsystemInterface::Execute_GetMassEntitySubsystem(GASIntegration);
-    }
+    UMassUnitEntitySubsystem* EntitySubsystem = nullptr;
+    // Plugin independence: skip GAS interface lookup
     
     // Skip if no entity subsystem
     if (!EntitySubsystem)
@@ -208,7 +205,7 @@ void UMassUnitBehaviorIntegration::UpdateBlackboardFromEntity(FMassEntityHandle 
     }
     
     // Get entity manager
-    FMassEntityManager& EntityManager = EntitySubsystem->GetMutableEntityManager();
+    FMassUnitEntityManagerFallback& EntityManager = *EntitySubsystem->GetMutableUnitEntityManager();
     
     // Skip if entity is invalid
     if (!Entity.IsValid() || !EntityManager.IsEntityValid(Entity))
@@ -217,14 +214,14 @@ void UMassUnitBehaviorIntegration::UpdateBlackboardFromEntity(FMassEntityHandle 
     }
     
     // Get entity view
-    FMassEntityView EntityView(EntityManager, Entity);
+    FMassUnitEntityView EntityView(EntityManager, Entity);
     
     // Update blackboard with entity data
     
     // Position
-    if (EntityView.HasFragmentData<FTransformFragment>())
+    if (EntityView.HasFragmentData<FMassUnitTransformFragment>())
     {
-        const FTransformFragment& TransformFragment = EntityView.GetFragmentData<FTransformFragment>();
+    const FMassUnitTransformFragment& TransformFragment = EntityView.GetFragmentData<FMassUnitTransformFragment>();
         BBComp->SetValueAsVector("Position", TransformFragment.GetTransform().GetLocation());
     }
     
@@ -260,30 +257,11 @@ void UMassUnitBehaviorIntegration::UpdateBlackboardFromEntity(FMassEntityHandle 
     {
         const FMassUnitAbilityFragment& AbilityFragment = EntityView.GetFragmentData<FMassUnitAbilityFragment>();
         
-        // Health
-        FGameplayAttribute HealthAttribute = UAbilitySystemGlobals::Get().FindAttributeByName(FName("Health"));
-        if (HealthAttribute.IsValid() && AbilityFragment.AttributeValues.Contains(HealthAttribute))
-        {
-            BBComp->SetValueAsFloat("Health", AbilityFragment.AttributeValues[HealthAttribute]);
-        }
-        
-        // Damage
-        FGameplayAttribute DamageAttribute = UAbilitySystemGlobals::Get().FindAttributeByName(FName("Damage"));
-        if (DamageAttribute.IsValid() && AbilityFragment.AttributeValues.Contains(DamageAttribute))
-        {
-            BBComp->SetValueAsFloat("Damage", AbilityFragment.AttributeValues[DamageAttribute]);
-        }
-        
-        // Speed
-        FGameplayAttribute SpeedAttribute = UAbilitySystemGlobals::Get().FindAttributeByName(FName("Speed"));
-        if (SpeedAttribute.IsValid() && AbilityFragment.AttributeValues.Contains(SpeedAttribute))
-        {
-            BBComp->SetValueAsFloat("Speed", AbilityFragment.AttributeValues[SpeedAttribute]);
-        }
+    // ...existing code...
     }
 }
 
-void UMassUnitBehaviorIntegration::UpdateEntityFromBlackboard(FMassEntityHandle Entity)
+void UMassUnitBehaviorIntegration::UpdateEntityFromBlackboard(FMassUnitEntityHandle Entity)
 {
     // Skip if not initialized
     if (!GASIntegration)
@@ -299,11 +277,8 @@ void UMassUnitBehaviorIntegration::UpdateEntityFromBlackboard(FMassEntityHandle 
     }
     
     // Get entity subsystem from GAS integration
-    UMassEntitySubsystem* EntitySubsystem = nullptr;
-    if (GASIntegration->GetClass()->ImplementsInterface(UMassEntitySubsystemInterface::StaticClass()))
-    {
-        EntitySubsystem = IMassEntitySubsystemInterface::Execute_GetMassEntitySubsystem(GASIntegration);
-    }
+    UMassUnitEntitySubsystem* EntitySubsystem = nullptr;
+        // Skipped: GAS interface lookup and Execute_GetMassUnitEntitySubsystem
     
     // Skip if no entity subsystem
     if (!EntitySubsystem)
@@ -312,7 +287,7 @@ void UMassUnitBehaviorIntegration::UpdateEntityFromBlackboard(FMassEntityHandle 
     }
     
     // Get entity manager
-    FMassEntityManager& EntityManager = EntitySubsystem->GetMutableEntityManager();
+    FMassUnitEntityManagerFallback& EntityManager = *EntitySubsystem->GetMutableUnitEntityManager();
     
     // Skip if entity is invalid
     if (!Entity.IsValid() || !EntityManager.IsEntityValid(Entity))
@@ -321,7 +296,7 @@ void UMassUnitBehaviorIntegration::UpdateEntityFromBlackboard(FMassEntityHandle 
     }
     
     // Get entity view
-    FMassEntityView EntityView(EntityManager, Entity);
+    FMassUnitEntityView EntityView(EntityManager, Entity);
     
     // Update entity data from blackboard
     

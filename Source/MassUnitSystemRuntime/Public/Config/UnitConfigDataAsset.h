@@ -1,17 +1,20 @@
-// Copyright Your Company. All Rights Reserved.
+// Copyright Digi Logic Labs LLC. All Rights Reserved.
 
 #pragma once
 
 #include "CoreMinimal.h"
 #include "Engine/DataAsset.h"
 #include "GameplayTagContainer.h"
+
+// ...existing code...
+
 #include "UnitConfigDataAsset.generated.h"
 
 class USkeletalMesh;
 class UStaticMesh;
 class UNiagaraSystem;
 class UTexture2D;
-class UGSCAbilitySet;
+// ...existing code...
 class UBehaviorTree;
 class UBlackboardData;
 
@@ -54,13 +57,7 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Visual")
     TMap<FGameplayTag, TSoftObjectPtr<UTexture2D>> VertexAnimationTextures;
     
-    /** Base attributes for this unit type */
-    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Gameplay")
-    TMap<FGameplayAttribute, float> BaseAttributes;
-    
-    /** Ability sets to grant to this unit type */
-    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Gameplay")
-    TArray<TSoftObjectPtr<UGSCAbilitySet>> AbilitySets;
+    // ...existing code...
     
     /** Behavior tree for AI control */
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "AI")

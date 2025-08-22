@@ -1,4 +1,4 @@
-// Copyright Your Company. All Rights Reserved.
+// Copyright Digi Logic Labs LLC. All Rights Reserved.
 
 #include "Core/MassUnitSystemRuntime.h"
 #include "Modules/ModuleManager.h"

@@ -1,4 +1,4 @@
-// Copyright Your Company. All Rights Reserved.
+// Copyright Digi Logic Labs LLC. All Rights Reserved.
 
 #pragma once
 
@@ -7,7 +7,7 @@
 
 // Include MassEntity types or fallback
 #if WITH_MASSENTITY
-class UMassEntitySubsystem;
+class UMassUnitEntitySubsystem;
 #else
 #include "Entity/MassEntityFallback.h"
 #endif
@@ -76,12 +76,12 @@ public:
     UUnitGameplayEventSystem* GetGameplayEventSystem() const;
     
     /** Get the entity subsystem */
-    UMassEntitySubsystem* GetEntitySubsystem() const { return EntitySubsystem; }
+    UMassUnitEntitySubsystem* GetEntitySubsystem() const { return EntitySubsystem; }
 
 private:
     /** Reference to the Mass Entity Subsystem */
     UPROPERTY(Transient)
-    UMassEntitySubsystem* EntitySubsystem;
+    UMassUnitEntitySubsystem* EntitySubsystem;
     
     /** Unit entity manager */
     UPROPERTY(Transient)
@@ -116,5 +116,5 @@ private:
     UUnitGameplayEventSystem* GameplayEventSystem;
     
     /** Delegate handle for tick function */
-    FDelegateHandle TickDelegateHandle;
+    FTimerHandle TickDelegateHandle;
 };

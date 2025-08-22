@@ -1,13 +1,12 @@
-// Copyright Your Company. All Rights Reserved.
+// Copyright Digi Logic Labs LLC. All Rights Reserved.
 
 #pragma once
 
 #include "CoreMinimal.h"
 #include "MassEntityTypes.h"
 #include "Entity/MassUnitEntityManager.h"
+#include "Entity/MassEntityFallback.h"
 #include "MassUnitNavigationSystem.generated.h"
-
-class UMassEntitySubsystem;
 class UNavigationSystemV1;
 class ANavigationData;
 
@@ -24,7 +23,7 @@ public:
     virtual ~UMassUnitNavigationSystem();
 
     /** Initialize the navigation system */
-    void Initialize(UWorld* InWorld, UMassEntitySubsystem* InEntitySubsystem);
+    void Initialize(UWorld* InWorld, UMassUnitEntitySubsystem* InEntitySubsystem);
     
     /** Deinitialize the navigation system */
     void Deinitialize();
@@ -35,10 +34,10 @@ public:
     
     /** Request a path for an entity */
     UFUNCTION(BlueprintCallable, Category = "Mass Unit System")
-    bool RequestPath(FMassUnitHandle UnitHandle, const FVector& Destination);
+    // bool RequestPathInternal(FMassUnitEntityHandle Entity, const FVector& Destination); // Remove duplicate declaration
     
     /** Internal method to request a path for an entity */
-    bool RequestPathInternal(FMassEntityHandle Entity, const FVector& Destination);
+    bool RequestPathInternal(FMassUnitEntityHandle Entity, const FVector& Destination);
     
     /** Process path requests */
     UFUNCTION(BlueprintCallable, Category = "Mass Unit System")
@@ -54,7 +53,7 @@ private:
     
     /** Reference to the Mass Entity Subsystem */
     UPROPERTY(Transient)
-    UMassEntitySubsystem* EntitySubsystem;
+    UMassUnitEntitySubsystem* EntitySubsystem;
     
     /** Reference to the navigation system */
     UPROPERTY(Transient)
@@ -67,7 +66,7 @@ private:
     /** Structure for path requests */
     struct FPathRequest
     {
-        FMassEntityHandle Entity;
+    FMassUnitEntityHandle Entity;
         FVector Destination;
         TSharedPtr<FNavPathSharedPtr> ResultPath;
         FNavPathQueryDelegate Delegate;
@@ -77,7 +76,7 @@ private:
     TArray<FPathRequest> PathRequestQueue;
     
     /** Map of entity handles to path results */
-    TMap<FMassEntityHandle, FNavPathSharedPtr> EntityPathMap;
+    TMap<FMassUnitEntityHandle, FNavPathSharedPtr> EntityPathMap;
     
     /** Maximum number of path requests to process per frame */
     UPROPERTY(EditAnywhere, Category = "Navigation")
@@ -94,5 +93,5 @@ private:
     void HandlePathRequestComplete(uint32 PathId, ENavigationQueryResult::Type Result, FNavPathSharedPtr Path);
     
     /** Update entity with path result */
-    void UpdateEntityWithPath(FMassEntityHandle Entity, const FNavPathSharedPtr& Path);
+    void UpdateEntityWithPath(FMassUnitEntityHandle Entity, const FNavPathSharedPtr& Path);
 };

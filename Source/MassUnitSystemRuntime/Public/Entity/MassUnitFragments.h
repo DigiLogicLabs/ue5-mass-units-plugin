@@ -1,20 +1,54 @@
-// Copyright Your Company. All Rights Reserved.
 
-#pragma once
+// ...existing code...
 
-#include "CoreMinimal.h"
-#include "GameplayTagContainer.h"
+// --- Custom LOD Fragments ---
+
+// ...existing code...
+// ...existing code...
+
 #include "GameplayAbilitySpec.h"
 #include "GameplayEffectTypes.h"
-
-// Include MassEntity types or fallback
-#if WITH_MASSENTITY
-#include "MassEntityTypes.h"
-#else
 #include "Entity/MassEntityFallback.h"
-#endif
-
 #include "MassUnitFragments.generated.h"
+
+// --- Custom LOD Fragments ---
+
+/**
+ * Fragment for unit LOD state
+ */
+USTRUCT(BlueprintType)
+struct MASSUNITSYSTEMRUNTIME_API FMassUnitLODFragment
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mass Unit")
+    int32 Level = 0;
+};
+
+/**
+ * Fragment for unit visualization LOD state
+ */
+USTRUCT(BlueprintType)
+struct MASSUNITSYSTEMRUNTIME_API FMassUnitVisualizationLODFragment
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mass Unit")
+    int32 LODLevel = 0;
+};
+
+USTRUCT(BlueprintType)
+struct MASSUNITSYSTEMRUNTIME_API FMassUnitTransformFragment
+{
+    GENERATED_BODY()
+
+public:
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mass Unit")
+    FTransform Transform;
+
+    FTransform GetTransform() const { return Transform; }
+    void SetTransform(const FTransform& InTransform) { Transform = InTransform; }
+};
 
 /** Enum for unit states */
 UENUM(BlueprintType)
@@ -33,170 +67,159 @@ enum class EMassUnitState : uint8
 /**
  * Fragment for unit state information
  */
-USTRUCT()
+USTRUCT(BlueprintType)
 struct MASSUNITSYSTEMRUNTIME_API FMassUnitStateFragment
 {
     GENERATED_BODY()
 
-    /** Current state of the unit */
-    UPROPERTY(EditAnywhere, Category = "Mass Unit")
+public:
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mass Unit")
     EMassUnitState CurrentState = EMassUnitState::Idle;
 
-    /** Time spent in current state */
-    UPROPERTY(EditAnywhere, Category = "Mass Unit")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mass Unit")
     float StateTime = 0.0f;
 
-    /** Unit type tag */
-    UPROPERTY(EditAnywhere, Category = "Mass Unit")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mass Unit")
     FGameplayTag UnitType;
 
-    /** Unit level */
-    UPROPERTY(EditAnywhere, Category = "Mass Unit")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mass Unit")
     int32 UnitLevel = 1;
 };
 
 /**
  * Fragment for unit targeting information
  */
-USTRUCT()
+USTRUCT(BlueprintType)
 struct MASSUNITSYSTEMRUNTIME_API FMassUnitTargetFragment
 {
     GENERATED_BODY()
 
-    /** Target entity handle */
-    FMassEntityHandle TargetEntity;
+public:
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mass Unit")
+    FMassUnitEntityHandle TargetEntity;
 
-    /** Target location */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mass Unit")
     FVector TargetLocation = FVector::ZeroVector;
 
-    /** Target priority */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mass Unit")
     float TargetPriority = 0.0f;
 
-    /** Whether the unit has a valid target */
     bool HasTarget() const { return TargetEntity.IsValid() || !TargetLocation.IsZero(); }
 };
 
 /**
  * Fragment for unit ability information
  */
-USTRUCT()
+USTRUCT(BlueprintType)
 struct MASSUNITSYSTEMRUNTIME_API FMassUnitAbilityFragment
 {
     GENERATED_BODY()
 
-    /** Ability handles for this unit */
+public:
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mass Unit")
     TArray<FGameplayAbilitySpecHandle> AbilityHandles;
 
-    /** Active effect tags */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mass Unit")
     TArray<FGameplayTag> ActiveEffectTags;
 
-    /** Attribute values */
-    TMap<FGameplayAttribute, float> AttributeValues;
+    // ...existing code...
 };
 
 /**
  * Fragment for unit team information
  */
-USTRUCT()
+USTRUCT(BlueprintType)
 struct MASSUNITSYSTEMRUNTIME_API FMassUnitTeamFragment
 {
     GENERATED_BODY()
 
-    /** Team ID */
-    UPROPERTY(EditAnywhere, Category = "Mass Unit")
+public:
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mass Unit")
     int32 TeamID = 0;
 
-    /** Team color */
-    UPROPERTY(EditAnywhere, Category = "Mass Unit")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mass Unit")
     FLinearColor TeamColor = FLinearColor::White;
 
-    /** Team faction */
-    UPROPERTY(EditAnywhere, Category = "Mass Unit")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mass Unit")
     FGameplayTag TeamFaction;
 };
 
 /**
  * Fragment for unit visual state
  */
-USTRUCT()
+USTRUCT(BlueprintType)
 struct MASSUNITSYSTEMRUNTIME_API FMassUnitVisualFragment
 {
     GENERATED_BODY()
 
-    /** Current animation tag */
-    UPROPERTY(EditAnywhere, Category = "Mass Unit")
+public:
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mass Unit")
     FGameplayTag CurrentAnimation;
 
-    /** Target animation tag */
-    UPROPERTY(EditAnywhere, Category = "Mass Unit")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mass Unit")
     FGameplayTag TargetAnimation;
 
-    /** Blend alpha between animations */
-    UPROPERTY(EditAnywhere, Category = "Mass Unit")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mass Unit")
     float BlendAlpha = 0.0f;
 
-    /** Current LOD level */
-    UPROPERTY(EditAnywhere, Category = "Mass Unit")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mass Unit")
     int32 LODLevel = 0;
 
-    /** Whether the unit is visible */
-    UPROPERTY(EditAnywhere, Category = "Mass Unit")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mass Unit")
     bool bIsVisible = true;
 
-    /** Whether to use skeletal mesh instead of vertex animation */
-    UPROPERTY(EditAnywhere, Category = "Mass Unit")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mass Unit")
     bool bUseSkeletalMesh = false;
 
-    /** Index in the skeletal mesh pool if using skeletal mesh */
-    UPROPERTY(EditAnywhere, Category = "Mass Unit")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mass Unit")
     int32 SkeletalMeshIndex = -1;
 };
 
 /**
  * Fragment for unit formation information
  */
-USTRUCT()
+USTRUCT(BlueprintType)
 struct MASSUNITSYSTEMRUNTIME_API FMassUnitFormationFragment
 {
     GENERATED_BODY()
 
-    /** Formation handle */
+public:
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mass Unit")
     int32 FormationHandle = -1;
 
-    /** Formation slot */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mass Unit")
     int32 FormationSlot = -1;
 
-    /** Formation offset */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mass Unit")
     FVector FormationOffset = FVector::ZeroVector;
 
-    /** Whether the unit is in a formation */
     bool IsInFormation() const { return FormationHandle >= 0; }
 };
 
 /**
  * Fragment for unit navigation information
  */
-USTRUCT()
+USTRUCT(BlueprintType)
 struct MASSUNITSYSTEMRUNTIME_API FMassUnitNavigationFragment
 {
     GENERATED_BODY()
 
-    /** Destination location */
+public:
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mass Unit")
     FVector DestinationLocation = FVector::ZeroVector;
 
-    /** Path points */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mass Unit")
     TArray<FVector> PathPoints;
 
-    /** Current path index */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mass Unit")
     int32 CurrentPathIndex = -1;
 
-    /** Whether a path has been requested */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mass Unit")
     bool bPathRequested = false;
 
-    /** Whether the path is valid */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mass Unit")
     bool bPathValid = false;
 
-    /** Whether the unit has reached its destination */
     bool HasReachedDestination() const 
     { 
         return PathPoints.Num() == 0 || 
@@ -204,3 +227,5 @@ struct MASSUNITSYSTEMRUNTIME_API FMassUnitNavigationFragment
                FVector::DistSquared(DestinationLocation, PathPoints.Last()) < 100.0f); 
     }
 };
+// Copyright Digi Logic Labs LLC. All Rights Reserved.
+#pragma once

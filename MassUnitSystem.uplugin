@@ -6,7 +6,7 @@
 	"EngineVersion": "5.6.0",
 	"Description": "High-performance large-scale unit system with GAS integration",
 	"Category": "Gameplay",
-	"CreatedBy": "Your Company",
+	"CreatedBy": "Digi Logic Labs LLC",
 	"CreatedByURL": "https://yourcompany.com",
 	"DocsURL": "",
 	"MarketplaceURL": "",
@@ -43,18 +43,6 @@
 		},
 		{
 			"Name": "MassAI",
-			"Enabled": true
-		},
-		{
-			"Name": "MassNavigation",
-			"Enabled": true
-		},
-		{
-			"Name": "MassZoneGraphNavigation",
-			"Enabled": true
-		},
-		{
-			"Name": "MassAIBehavior",
 			"Enabled": true
 		}
 	]

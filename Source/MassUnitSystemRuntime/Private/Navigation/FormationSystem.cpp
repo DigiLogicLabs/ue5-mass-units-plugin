@@ -1,4 +1,4 @@
-// Copyright Your Company. All Rights Reserved.
+// Copyright Digi Logic Labs LLC. All Rights Reserved.
 
 #include "Navigation/FormationSystem.h"
 #include "MassEntitySubsystem.h"
@@ -17,10 +17,10 @@ UFormationSystem::~UFormationSystem()
 {
 }
 
-void UFormationSystem::Initialize(UMassEntitySubsystem* InEntitySubsystem)
+void UFormationSystem::Initialize(UMassUnitEntitySubsystem* InEntitySubsystem)
 {
     EntitySubsystem = InEntitySubsystem;
-    
+
     UE_LOG(LogTemp, Log, TEXT("FormationSystem: Initialized"));
 }
 
@@ -94,115 +94,50 @@ int32 UFormationSystem::CreateFormation(FVector Location, FRotator Rotation, FNa
     return FormationHandle;
 }
 
-bool UFormationSystem::AddEntityToFormation(FMassEntityHandle Entity, int32 FormationHandle)
+bool UFormationSystem::AddEntityToFormation(FMassUnitEntityHandle Entity, int32 FormationHandle)
 {
-    // Skip if not initialized
     if (!EntitySubsystem)
-    {
         return false;
-    }
-    
-    // Get entity manager
-    FMassEntityManager& EntityManager = EntitySubsystem->GetMutableEntityManager();
-    
-    // Skip if entity is invalid
+    FMassUnitEntityManagerFallback& EntityManager = *EntitySubsystem->GetMutableUnitEntityManager();
     if (!Entity.IsValid() || !EntityManager.IsEntityValid(Entity))
-    {
         return false;
-    }
-    
-    // Get formation data
     FFormationData* FormationData = Formations.Find(FormationHandle);
     if (!FormationData)
     {
         UE_LOG(LogTemp, Warning, TEXT("FormationSystem: Formation %d not found"), FormationHandle);
         return false;
     }
-    
-    // Check if entity is already in a formation
     int32* ExistingFormationHandle = EntityFormationMap.Find(Entity);
     if (ExistingFormationHandle)
-    {
-        // Remove from existing formation
         RemoveEntityFromFormation(Entity);
-    }
-    
-    // Assign slot to entity
     int32 SlotIndex = AssignSlotToEntity(*FormationData, Entity);
-    
-    // Add entity to formation
     FormationData->Entities.Add(Entity);
     FormationData->EntitySlots.Add(Entity, SlotIndex);
-    
-    // Add to entity formation map
     EntityFormationMap.Add(Entity, FormationHandle);
-    
-    // Update entity formation data
     UpdateEntityFormationData(Entity, FormationHandle, SlotIndex);
-    
-    UE_LOG(LogTemp, Verbose, TEXT("FormationSystem: Added entity %s to formation %d in slot %d"), 
-        *Entity.ToString(), FormationHandle, SlotIndex);
-    
+    UE_LOG(LogTemp, Verbose, TEXT("FormationSystem: Added entity %s to formation %d in slot %d"), *Entity.ToString(), FormationHandle, SlotIndex);
     return true;
 }
 
-bool UFormationSystem::RemoveEntityFromFormation(FMassEntityHandle Entity)
+bool UFormationSystem::RemoveEntityFromFormation(FMassUnitEntityHandle Entity)
 {
-    // Skip if not initialized
     if (!EntitySubsystem)
-    {
         return false;
-    }
-    
-    // Get entity manager
-    FMassEntityManager& EntityManager = EntitySubsystem->GetMutableEntityManager();
-    
-    // Skip if entity is invalid
+    FMassUnitEntityManagerFallback& EntityManager = *EntitySubsystem->GetMutableUnitEntityManager();
     if (!Entity.IsValid() || !EntityManager.IsEntityValid(Entity))
-    {
         return false;
-    }
-    
-    // Get formation handle
     int32* FormationHandlePtr = EntityFormationMap.Find(Entity);
     if (!FormationHandlePtr)
-    {
-        // Entity not in a formation
         return false;
-    }
-    
-    // Get formation handle
     int32 FormationHandle = *FormationHandlePtr;
-    
-    // Get formation data
     FFormationData* FormationData = Formations.Find(FormationHandle);
     if (!FormationData)
-    {
-        // Formation not found, just remove from map
-        EntityFormationMap.Remove(Entity);
         return false;
-    }
-    
-    // Remove entity from formation
     FormationData->Entities.Remove(Entity);
     FormationData->EntitySlots.Remove(Entity);
-    
-    // Remove from entity formation map
     EntityFormationMap.Remove(Entity);
-    
-    // Update entity formation data
-    FMassEntityView EntityView(EntityManager, Entity);
-    if (EntityView.HasFragmentData<FMassUnitFormationFragment>())
-    {
-        FMassUnitFormationFragment& FormationFragment = EntityView.GetFragmentData<FMassUnitFormationFragment>();
-        FormationFragment.FormationHandle = 0;
-        FormationFragment.FormationSlot = -1;
-        FormationFragment.FormationOffset = FVector::ZeroVector;
-    }
-    
-    UE_LOG(LogTemp, Verbose, TEXT("FormationSystem: Removed entity %s from formation %d"), 
-        *Entity.ToString(), FormationHandle);
-    
+    UpdateEntityFormationData(Entity, INDEX_NONE, INDEX_NONE);
+    UE_LOG(LogTemp, Verbose, TEXT("FormationSystem: Removed entity %s from formation %d"), *Entity.ToString(), FormationHandle);
     return true;
 }
 
@@ -242,7 +177,7 @@ bool UFormationSystem::SetFormationShape(int32 FormationHandle, FName FormationS
     // Update all entities in formation
     for (int32 i = 0; i < FormationData->Entities.Num(); ++i)
     {
-        FMassEntityHandle Entity = FormationData->Entities[i];
+    FMassUnitEntityHandle Entity = FormationData->Entities[i];
         int32 SlotIndex = FormationData->EntitySlots.FindChecked(Entity);
         
         // Update entity formation data
@@ -279,15 +214,11 @@ FRotator UFormationSystem::GetFormationRotation(int32 FormationHandle) const
     return FormationData->Rotation;
 }
 
-TArray<FMassEntityHandle> UFormationSystem::GetEntitiesInFormation(int32 FormationHandle) const
+TArray<FMassUnitEntityHandle> UFormationSystem::GetEntitiesInFormation(int32 FormationHandle) const
 {
-    // Get formation data
     const FFormationData* FormationData = Formations.Find(FormationHandle);
     if (!FormationData)
-    {
-        return TArray<FMassEntityHandle>();
-    }
-    
+        return TArray<FMassUnitEntityHandle>();
     return FormationData->Entities;
 }
 
@@ -300,7 +231,7 @@ void UFormationSystem::UpdateFormationPositions(float DeltaTime)
     }
     
     // Get entity manager
-    FMassEntityManager& EntityManager = EntitySubsystem->GetMutableEntityManager();
+    FMassUnitEntityManagerFallback& EntityManager = *EntitySubsystem->GetMutableUnitEntityManager();
     
     // Update each formation
     for (auto& Pair : Formations)
@@ -317,7 +248,7 @@ void UFormationSystem::UpdateFormationPositions(float DeltaTime)
         // Update each entity in formation
         for (int32 i = 0; i < FormationData.Entities.Num(); ++i)
         {
-            FMassEntityHandle Entity = FormationData.Entities[i];
+            FMassUnitEntityHandle Entity = FormationData.Entities[i];
             
             // Skip if entity is invalid
             if (!Entity.IsValid() || !EntityManager.IsEntityValid(Entity))
@@ -326,7 +257,7 @@ void UFormationSystem::UpdateFormationPositions(float DeltaTime)
             }
             
             // Get entity view
-            FMassEntityView EntityView(EntityManager, Entity);
+            FMassUnitEntityView EntityView(EntityManager, Entity);
             
             // Skip if missing required fragments
             if (!EntityView.HasFragmentData<FMassUnitFormationFragment>() ||
@@ -466,7 +397,7 @@ FVector UFormationSystem::CalculateSlotPosition(const FFormationData& Formation,
     }
     
     // Default to grid
-    int32 GridSize = FMath::CeilToInt(FMath::Sqrt(Formation.Entities.Num()));
+    int32 GridSize = FMath::CeilToInt(FMath::Sqrt(static_cast<float>(Formation.Entities.Num())));
     int32 Row = SlotIndex / GridSize;
     int32 Column = SlotIndex % GridSize;
     
@@ -476,69 +407,37 @@ FVector UFormationSystem::CalculateSlotPosition(const FFormationData& Formation,
     return FVector(OffsetY, OffsetX, 0.0f);
 }
 
-int32 UFormationSystem::AssignSlotToEntity(FFormationData& Formation, FMassEntityHandle Entity)
+int32 UFormationSystem::AssignSlotToEntity(FFormationData& Formation, FMassUnitEntityHandle Entity)
 {
-    // Check if entity already has a slot
     int32* ExistingSlot = Formation.EntitySlots.Find(Entity);
     if (ExistingSlot)
-    {
         return *ExistingSlot;
-    }
-    
-    // Find next available slot
     int32 SlotIndex = Formation.Entities.Num();
-    
     return SlotIndex;
 }
 
-void UFormationSystem::UpdateEntityFormationData(FMassEntityHandle Entity, int32 FormationHandle, int32 SlotIndex)
+void UFormationSystem::UpdateEntityFormationData(FMassUnitEntityHandle Entity, int32 FormationHandle, int32 SlotIndex)
 {
-    // Skip if not initialized
     if (!EntitySubsystem)
-    {
         return;
-    }
-    
-    // Get entity manager
-    FMassEntityManager& EntityManager = EntitySubsystem->GetMutableEntityManager();
-    
-    // Skip if entity is invalid
+    FMassUnitEntityManagerFallback& EntityManager = *EntitySubsystem->GetMutableUnitEntityManager();
     if (!Entity.IsValid() || !EntityManager.IsEntityValid(Entity))
-    {
         return;
-    }
-    
-    // Get entity view
-    FMassEntityView EntityView(EntityManager, Entity);
-    
-    // Skip if missing required fragments
+    FMassUnitEntityView EntityView(EntityManager, Entity);
     if (!EntityView.HasFragmentData<FMassUnitFormationFragment>())
-    {
         return;
-    }
-    
-    // Get formation data
     FFormationData* FormationData = Formations.Find(FormationHandle);
     if (!FormationData)
-    {
         return;
-    }
-    
-    // Get formation fragment
     FMassUnitFormationFragment& FormationFragment = EntityView.GetFragmentData<FMassUnitFormationFragment>();
-    
-    // Update formation fragment
     FormationFragment.FormationHandle = FormationHandle;
     FormationFragment.FormationSlot = SlotIndex;
-    
-    // Calculate slot position
     FVector SlotOffset = CalculateSlotPosition(*FormationData, SlotIndex);
     FormationFragment.FormationOffset = SlotOffset;
-    
-    // Update target fragment if available
     if (EntityView.HasFragmentData<FMassUnitTargetFragment>())
     {
         FMassUnitTargetFragment& TargetFragment = EntityView.GetFragmentData<FMassUnitTargetFragment>();
         TargetFragment.TargetLocation = FormationData->Location + FormationData->Rotation.RotateVector(SlotOffset);
     }
 }
+// End of file

@@ -1,4 +1,4 @@
-// Copyright Your Company. All Rights Reserved.
+// Copyright Digi Logic Labs LLC. All Rights Reserved.
 
 #pragma once
 
@@ -39,10 +39,10 @@ public:
     
     
     /** Internal method to set behavior tree for an entity */
-    bool SetBehaviorTreeInternal(FMassEntityHandle Entity, UBehaviorTree* BehaviorTree, UBlackboardData* BlackboardData);
+    bool SetBehaviorTreeInternal(FMassUnitEntityHandle Entity, UBehaviorTree* BehaviorTree, UBlackboardData* BlackboardData);
     
     /** Internal method to execute a behavior tree task for an entity */
-    bool ExecuteBTTaskInternal(FMassEntityHandle Entity, FGameplayTag TaskTag);
+    bool ExecuteBTTaskInternal(FMassUnitEntityHandle Entity, FGameplayTag TaskTag);
 
 private:
     /** Reference to the GAS integration */
@@ -50,17 +50,17 @@ private:
     UGASUnitIntegration* GASIntegration;
     
     /** Map of entity handles to behavior tree components */
-    TMap<FMassEntityHandle, class UBehaviorTreeComponent*> EntityBTMap;
+    TMap<FMassUnitEntityHandle, class UBehaviorTreeComponent*> EntityBTMap;
     
     /** Map of entity handles to blackboard components */
-    TMap<FMassEntityHandle, class UBlackboardComponent*> EntityBBMap;
+    TMap<FMassUnitEntityHandle, class UBlackboardComponent*> EntityBBMap;
     
     /** Create behavior tree component for an entity */
-    class UBehaviorTreeComponent* CreateBehaviorTreeForEntity(FMassEntityHandle Entity, UBehaviorTree* BehaviorTree, UBlackboardData* BlackboardData);
+    class UBehaviorTreeComponent* CreateBehaviorTreeForEntity(FMassUnitEntityHandle Entity, UBehaviorTree* BehaviorTree, UBlackboardData* BlackboardData);
     
     /** Update blackboard from entity data */
-    void UpdateBlackboardFromEntity(FMassEntityHandle Entity);
+    void UpdateBlackboardFromEntity(FMassUnitEntityHandle Entity);
     
     /** Update entity data from blackboard */
-    void UpdateEntityFromBlackboard(FMassEntityHandle Entity);
+    void UpdateEntityFromBlackboard(FMassUnitEntityHandle Entity);
 };

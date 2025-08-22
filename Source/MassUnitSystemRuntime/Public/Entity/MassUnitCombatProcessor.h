@@ -1,8 +1,9 @@
-// Copyright Your Company. All Rights Reserved.
+// Copyright Digi Logic Labs LLC. All Rights Reserved.
 
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Entity/MassEntityFallback.h"
 #include "MassProcessor.h"
 #include "MassUnitCombatProcessor.generated.h"
 
@@ -17,19 +18,19 @@ class MASSUNITSYSTEMRUNTIME_API UMassUnitCombatProcessor : public UMassProcessor
 public:
     UMassUnitCombatProcessor();
 
-protected:
-    /** Configure the processor with required fragments */
-    virtual void ConfigureQueries() override;
-    
-    /** Execute the processor logic */
+    // Unreal override for compatibility
     virtual void Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context) override;
+    // Fallback logic for plugin independence
+    void ExecuteFallback(FMassUnitEntityManagerFallback& EntityManager, FMassUnitExecutionContext& Context);
+    // Query configuration
+    void SetupUnitQueries();
 
 private:
     /** Process combat interaction between attacker and target */
-    void ProcessCombatInteraction(FMassEntityManager& EntityManager, FMassEntityHandle Attacker, FMassEntityHandle Target);
+    void ProcessCombatInteraction(FMassUnitEntityManagerFallback& EntityManager, FMassUnitEntityHandle Attacker, FMassUnitEntityHandle Target);
 
     /** Entity query for processing units */
-    FMassEntityQuery EntityQuery;
+    FMassUnitEntityQuery EntityQuery;
     
     /** Attack range for units */
     UPROPERTY(EditAnywhere, Category = "Combat")

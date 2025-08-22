@@ -1,14 +1,14 @@
-// Copyright Your Company. All Rights Reserved.
+// Copyright Digi Logic Labs LLC. All Rights Reserved.
 
 #pragma once
 
 #include "CoreMinimal.h"
 #include "MassEntityTypes.h"
 #include "Entity/MassUnitEntityManager.h"
+#include "Entity/MassEntityFallback.h"
 #include "UnitMeshPool.generated.h"
 
 class USkeletalMeshComponent;
-class UMassEntitySubsystem;
 
 /**
  * Pool of skeletal meshes for player-interactive units in the Mass Unit System
@@ -23,7 +23,7 @@ public:
     virtual ~UUnitMeshPool();
 
     /** Initialize the mesh pool */
-    void Initialize(UWorld* InWorld, UMassEntitySubsystem* InEntitySubsystem, int32 PoolSize);
+    void Initialize(UWorld* InWorld, UMassUnitEntitySubsystem* InEntitySubsystem, int32 PoolSize);
     
     /** Deinitialize the mesh pool */
     void Deinitialize();
@@ -45,13 +45,13 @@ public:
     bool TransitionToVertex(FMassUnitHandle UnitHandle);
     
     /** Internal method to get a mesh for a unit */
-    USkeletalMeshComponent* GetMeshForUnitInternal(FMassEntityHandle Entity);
+    USkeletalMeshComponent* GetMeshForUnitInternal(FMassUnitEntityHandle Entity);
     
     /** Internal method to transition a unit to skeletal mesh representation */
-    bool TransitionToSkeletalInternal(FMassEntityHandle Entity);
+    bool TransitionToSkeletalInternal(FMassUnitEntityHandle Entity);
     
     /** Internal method to transition a unit to vertex animation representation */
-    bool TransitionToVertexInternal(FMassEntityHandle Entity);
+    bool TransitionToVertexInternal(FMassUnitEntityHandle Entity);
 
 private:
     /** Reference to the world */
@@ -60,17 +60,17 @@ private:
     
     /** Reference to the Mass Entity Subsystem */
     UPROPERTY(Transient)
-    UMassEntitySubsystem* EntitySubsystem;
+    UMassUnitEntitySubsystem* EntitySubsystem;
     
     /** Pool of available skeletal mesh components */
     UPROPERTY(Transient)
     TArray<USkeletalMeshComponent*> AvailableMeshes;
     
     /** Map of entity handles to skeletal mesh components */
-    TMap<FMassEntityHandle, USkeletalMeshComponent*> EntityMeshMap;
+    TMap<FMassUnitEntityHandle, USkeletalMeshComponent*> EntityMeshMap;
     
     /** Map of skeletal mesh components to entity handles */
-    TMap<USkeletalMeshComponent*, FMassEntityHandle> MeshEntityMap;
+    TMap<USkeletalMeshComponent*, FMassUnitEntityHandle> MeshEntityMap;
     
     /** Maximum size of the pool */
     int32 MaxPoolSize;
@@ -79,5 +79,5 @@ private:
     USkeletalMeshComponent* CreateMeshComponent();
     
     /** Update mesh from entity data */
-    void UpdateMeshFromEntity(USkeletalMeshComponent* Mesh, FMassEntityHandle Entity);
+    void UpdateMeshFromEntity(USkeletalMeshComponent* Mesh, FMassUnitEntityHandle Entity);
 };

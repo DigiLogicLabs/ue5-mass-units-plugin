@@ -1,9 +1,10 @@
-// Copyright Your Company. All Rights Reserved.
+// Copyright Digi Logic Labs LLC. All Rights Reserved.
 
 #pragma once
 
 #include "CoreMinimal.h"
 #include "MassProcessor.h"
+#include "Entity/MassEntityFallback.h"
 #include "MassUnitVisibilityProcessor.generated.h"
 
 /**
@@ -17,29 +18,28 @@ class MASSUNITSYSTEMRUNTIME_API UMassUnitVisibilityProcessor : public UMassProce
 public:
     UMassUnitVisibilityProcessor();
 
-protected:
-    /** Configure the processor with required fragments */
-    virtual void ConfigureQueries() override;
-    
-    /** Execute the processor logic */
+    // Unreal override for compatibility
     virtual void Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context) override;
+    // Fallback logic for plugin independence
+    void ExecuteFallback(FMassUnitEntityManagerFallback& EntityManager, FMassUnitExecutionContext& Context);
+    // Query configuration
+    void SetupUnitQueries();
 
 private:
     /** Determine visibility state for an entity */
-    int32 DetermineVisibilityState(FMassEntityManager& EntityManager, FMassEntityHandle Entity, const FVector& ViewLocation);
+    int32 DetermineVisibilityState(FMassUnitEntityManagerFallback& EntityManager, FMassUnitEntityHandle Entity, const FVector& ViewLocation);
 
     /** Entity query for processing units */
-    FMassEntityQuery EntityQuery;
-    
+    FMassUnitEntityQuery EntityQuery;
+
     /** LOD distance thresholds */
     UPROPERTY(EditAnywhere, Category = "Visibility")
     TArray<float> LODDistanceThresholds = {500.0f, 1500.0f, 3000.0f, 6000.0f};
-    
+
     /** Maximum distance for visibility */
     UPROPERTY(EditAnywhere, Category = "Visibility")
-    float MaxVisibleDistance = 10000.0f;
-    
+    float MaxVisibleDistance;
     /** Distance for skeletal mesh transition */
     UPROPERTY(EditAnywhere, Category = "Visibility")
-    float SkeletalMeshDistance = 300.0f;
+    float SkeletalMeshDistance;
 };

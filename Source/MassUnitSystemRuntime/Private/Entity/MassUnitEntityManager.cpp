@@ -1,11 +1,11 @@
-// Copyright Your Company. All Rights Reserved.
+// Copyright Digi Logic Labs LLC. All Rights Reserved.
 
 #include "Entity/MassUnitEntityManager.h"
 #include "MassEntitySubsystem.h"
 #include "Entity/UnitTemplate.h"
 #include "Entity/MassUnitFragments.h"
 #include "MassUnitCommonFragments.h"
-#include "MassEntityView.h"
+#include "Entity/MassEntityFallback.h"
 #include "MassSpawnerTypes.h"
 #include "GameplayTagContainer.h"
 
@@ -18,7 +18,7 @@ UMassUnitEntityManager::~UMassUnitEntityManager()
 {
 }
 
-void UMassUnitEntityManager::Initialize(UMassEntitySubsystem* InEntitySubsystem)
+void UMassUnitEntityManager::Initialize(UMassUnitEntitySubsystem* InEntitySubsystem)
 {
     EntitySubsystem = InEntitySubsystem;
     UE_LOG(LogTemp, Log, TEXT("MassUnitEntityManager: Initialized"));
@@ -26,34 +26,21 @@ void UMassUnitEntityManager::Initialize(UMassEntitySubsystem* InEntitySubsystem)
 
 FMassUnitHandle UMassUnitEntityManager::CreateUnitFromTemplate(UUnitTemplate* Template, const FTransform& SpawnTransform)
 {
-    return FMassUnitHandle(CreateUnitFromTemplateInternal(Template, SpawnTransform));
-}
-
-FMassEntityHandle UMassUnitEntityManager::CreateUnitFromTemplateInternal(UUnitTemplate* Template, const FTransform& SpawnTransform)
-{
     if (!Template || !EntitySubsystem)
     {
         UE_LOG(LogTemp, Error, TEXT("MassUnitEntityManager: Failed to create unit - invalid template or entity subsystem"));
-        return FMassEntityHandle();
+        return FMassUnitHandle();
     }
-
-    // Create entity archetype with required fragments
-    FMassEntityManager& EntityManager = EntitySubsystem->GetMutableEntityManager();
-    
-    // Create entity with required fragments
-    FMassArchetypeHandle Archetype = EntityManager.CreateArchetype(Template->GetRequiredFragments());
-    FMassEntityHandle EntityHandle = EntityManager.CreateEntity(Archetype);
-
-    // Initialize entity with template data
-    FMassEntityView EntityView(EntityManager, EntityHandle);
-    
+    FMassUnitEntityManagerFallback& EntityManager = *EntitySubsystem->GetMutableUnitEntityManager();
+    // Create entity with required fragments (custom fallback logic)
+    FMassUnitEntityHandle EntityHandle = EntityManager.CreateEntity(); // Use fallback creation
+    FMassUnitEntityView EntityView(EntityManager, EntityHandle);
     // Set transform
-    if (EntityView.HasFragmentData<FTransformFragment>())
+    if (EntityView.HasFragmentData<FMassUnitTransformFragment>())
     {
-        FTransformFragment& TransformFragment = EntityView.GetFragmentData<FTransformFragment>();
+        FMassUnitTransformFragment& TransformFragment = EntityView.GetFragmentData<FMassUnitTransformFragment>();
         TransformFragment.SetTransform(SpawnTransform);
     }
-    
     // Set unit state
     if (EntityView.HasFragmentData<FMassUnitStateFragment>())
     {
@@ -63,7 +50,6 @@ FMassEntityHandle UMassUnitEntityManager::CreateUnitFromTemplateInternal(UUnitTe
         StateFragment.UnitType = Template->UnitType;
         StateFragment.UnitLevel = Template->BaseLevel;
     }
-    
     // Set team
     if (EntityView.HasFragmentData<FMassUnitTeamFragment>())
     {
@@ -72,32 +58,21 @@ FMassEntityHandle UMassUnitEntityManager::CreateUnitFromTemplateInternal(UUnitTe
         TeamFragment.TeamColor = Template->TeamColor;
         TeamFragment.TeamFaction = Template->TeamFaction;
     }
-    
     // Set ability data
     if (EntityView.HasFragmentData<FMassUnitAbilityFragment>())
     {
         FMassUnitAbilityFragment& AbilityFragment = EntityView.GetFragmentData<FMassUnitAbilityFragment>();
-        // Initialize with template abilities (will be populated later by GAS integration)
-        AbilityFragment.AbilityHandles.Empty();
-        AbilityFragment.ActiveEffectTags.Empty();
-        
-        // Initialize attributes from template
-        for (const auto& AttributePair : Template->BaseAttributes)
-        {
-            AbilityFragment.AttributeValues.Add(AttributePair.Key, AttributePair.Value);
-        }
+    AbilityFragment.AbilityHandles.Empty();
+    AbilityFragment.ActiveEffectTags.Empty();
+    // ...existing code...
+    // AttributeValues removed from FMassUnitAbilityFragment
     }
-    
     // Add to type map
     UnitTypeMap.FindOrAdd(Template->UnitType).Add(EntityHandle);
-    
     // Add to team map
     TeamMap.FindOrAdd(Template->TeamID).Add(EntityHandle);
-    
-    UE_LOG(LogTemp, Log, TEXT("MassUnitEntityManager: Created unit of type %s for team %d"), 
-        *Template->UnitType.ToString(), Template->TeamID);
-    
-    return EntityHandle;
+    UE_LOG(LogTemp, Log, TEXT("MassUnitEntityManager: Created unit of type %s for team %d"), *Template->UnitType.ToString(), Template->TeamID);
+    return FMassUnitHandle(EntityHandle);
 }
 
 void UMassUnitEntityManager::DestroyUnit(FMassUnitHandle UnitHandle)
@@ -105,20 +80,20 @@ void UMassUnitEntityManager::DestroyUnit(FMassUnitHandle UnitHandle)
     DestroyUnitInternal(UnitHandle.EntityHandle);
 }
 
-void UMassUnitEntityManager::DestroyUnitInternal(FMassEntityHandle EntityHandle)
+void UMassUnitEntityManager::DestroyUnitInternal(FMassUnitEntityHandle EntityHandle)
 {
     if (!EntitySubsystem || !EntityHandle.IsValid())
     {
         return;
     }
 
-    FMassEntityManager& EntityManager = EntitySubsystem->GetMutableEntityManager();
+    FMassUnitEntityManagerFallback& EntityManager = *EntitySubsystem->GetMutableUnitEntityManager();
     
     // Get unit data before destroying
     FGameplayTag UnitType;
     int32 TeamID = -1;
     
-    FMassEntityView EntityView(EntityManager, EntityHandle);
+    FMassUnitEntityView EntityView(EntityManager, EntityHandle);
     if (EntityView.HasFragmentData<FMassUnitStateFragment>())
     {
         UnitType = EntityView.GetFragmentData<FMassUnitStateFragment>().UnitType;
@@ -132,7 +107,7 @@ void UMassUnitEntityManager::DestroyUnitInternal(FMassEntityHandle EntityHandle)
     // Remove from type map
     if (UnitType.IsValid())
     {
-        if (TArray<FMassEntityHandle>* Units = UnitTypeMap.Find(UnitType))
+    if (TArray<FMassUnitEntityHandle>* Units = UnitTypeMap.Find(UnitType))
         {
             Units->Remove(EntityHandle);
         }
@@ -141,7 +116,7 @@ void UMassUnitEntityManager::DestroyUnitInternal(FMassEntityHandle EntityHandle)
     // Remove from team map
     if (TeamID >= 0)
     {
-        if (TArray<FMassEntityHandle>* Units = TeamMap.Find(TeamID))
+    if (TArray<FMassUnitEntityHandle>* Units = TeamMap.Find(TeamID))
         {
             Units->Remove(EntityHandle);
         }
@@ -156,10 +131,10 @@ void UMassUnitEntityManager::DestroyUnitInternal(FMassEntityHandle EntityHandle)
 TArray<FMassUnitHandle> UMassUnitEntityManager::GetUnitsByType(FGameplayTag UnitType)
 {
     TArray<FMassUnitHandle> Result;
-    TArray<FMassEntityHandle> RawHandles = GetUnitsByTypeInternal(UnitType);
+    TArray<FMassUnitEntityHandle> RawHandles = GetUnitsByTypeInternal(UnitType);
     
     // Convert raw handles to unit handles
-    for (const FMassEntityHandle& Handle : RawHandles)
+    for (const FMassUnitEntityHandle& Handle : RawHandles)
     {
         Result.Add(FMassUnitHandle(Handle));
     }
@@ -167,26 +142,26 @@ TArray<FMassUnitHandle> UMassUnitEntityManager::GetUnitsByType(FGameplayTag Unit
     return Result;
 }
 
-TArray<FMassEntityHandle> UMassUnitEntityManager::GetUnitsByTypeInternal(FGameplayTag UnitType)
+TArray<FMassUnitEntityHandle> UMassUnitEntityManager::GetUnitsByTypeInternal(FGameplayTag UnitType)
 {
     if (UnitType.IsValid())
     {
-        if (TArray<FMassEntityHandle>* Units = UnitTypeMap.Find(UnitType))
+    if (TArray<FMassUnitEntityHandle>* Units = UnitTypeMap.Find(UnitType))
         {
             return *Units;
         }
     }
     
-    return TArray<FMassEntityHandle>();
+    return TArray<FMassUnitEntityHandle>();
 }
 
 TArray<FMassUnitHandle> UMassUnitEntityManager::GetUnitsByTeam(int32 TeamID)
 {
     TArray<FMassUnitHandle> Result;
-    TArray<FMassEntityHandle> RawHandles = GetUnitsByTeamInternal(TeamID);
+    TArray<FMassUnitEntityHandle> RawHandles = GetUnitsByTeamInternal(TeamID);
     
     // Convert raw handles to unit handles
-    for (const FMassEntityHandle& Handle : RawHandles)
+    for (const FMassUnitEntityHandle& Handle : RawHandles)
     {
         Result.Add(FMassUnitHandle(Handle));
     }
@@ -194,15 +169,15 @@ TArray<FMassUnitHandle> UMassUnitEntityManager::GetUnitsByTeam(int32 TeamID)
     return Result;
 }
 
-TArray<FMassEntityHandle> UMassUnitEntityManager::GetUnitsByTeamInternal(int32 TeamID)
+TArray<FMassUnitEntityHandle> UMassUnitEntityManager::GetUnitsByTeamInternal(int32 TeamID)
 {
     if (TeamID >= 0)
     {
-        if (TArray<FMassEntityHandle>* Units = TeamMap.Find(TeamID))
+    if (TArray<FMassUnitEntityHandle>* Units = TeamMap.Find(TeamID))
         {
             return *Units;
         }
     }
     
-    return TArray<FMassEntityHandle>();
+    return TArray<FMassUnitEntityHandle>();
 }

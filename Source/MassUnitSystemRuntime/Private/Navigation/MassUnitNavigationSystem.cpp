@@ -1,4 +1,4 @@
-// Copyright Your Company. All Rights Reserved.
+// Copyright Digi Logic Labs LLC. All Rights Reserved.
 
 #include "Navigation/MassUnitNavigationSystem.h"
 #include "MassEntitySubsystem.h"
@@ -22,7 +22,7 @@ UMassUnitNavigationSystem::~UMassUnitNavigationSystem()
 {
 }
 
-void UMassUnitNavigationSystem::Initialize(UWorld* InWorld, UMassEntitySubsystem* InEntitySubsystem)
+void UMassUnitNavigationSystem::Initialize(UWorld* InWorld, UMassUnitEntitySubsystem* InEntitySubsystem)
 {
     World = InWorld;
     EntitySubsystem = InEntitySubsystem;
@@ -57,26 +57,21 @@ void UMassUnitNavigationSystem::Deinitialize()
     UE_LOG(LogTemp, Log, TEXT("MassUnitNavigationSystem: Deinitialized"));
 }
 
-void UMassUnitNavigationSystem::UpdateNavigationData(UWorld* World)
+void UMassUnitNavigationSystem::UpdateNavigationData(UWorld* InWorld)
 {
-    // Skip if no world
-    if (!World)
+    if (!InWorld)
     {
         return;
     }
-    
-    // Update navigation system reference
-    NavigationSystem = FNavigationSystem::GetCurrent<UNavigationSystemV1>(World);
+    NavigationSystem = FNavigationSystem::GetCurrent<UNavigationSystemV1>(InWorld);
     if (NavigationSystem)
     {
-        // Update navigation data reference
         NavigationData = NavigationSystem->GetDefaultNavDataInstance();
     }
-    
     UE_LOG(LogTemp, Log, TEXT("MassUnitNavigationSystem: Updated navigation data"));
 }
 
-bool UMassUnitNavigationSystem::RequestPath(FMassEntityHandle Entity, const FVector& Destination)
+bool UMassUnitNavigationSystem::RequestPathInternal(FMassUnitEntityHandle Entity, const FVector& Destination)
 {
     // Skip if not initialized
     if (!EntitySubsystem || !NavigationSystem || !NavigationData)
@@ -85,7 +80,7 @@ bool UMassUnitNavigationSystem::RequestPath(FMassEntityHandle Entity, const FVec
     }
     
     // Get entity manager
-    FMassEntityManager& EntityManager = EntitySubsystem->GetMutableEntityManager();
+    FMassUnitEntityManagerFallback& EntityManager = *EntitySubsystem->GetMutableUnitEntityManager();
     
     // Skip if entity is invalid
     if (!Entity.IsValid() || !EntityManager.IsEntityValid(Entity))
@@ -94,17 +89,17 @@ bool UMassUnitNavigationSystem::RequestPath(FMassEntityHandle Entity, const FVec
     }
     
     // Get entity view
-    FMassEntityView EntityView(EntityManager, Entity);
+    FMassUnitEntityView EntityView(EntityManager, Entity);
     
     // Skip if missing required fragments
-    if (!EntityView.HasFragmentData<FTransformFragment>() ||
+    if (!EntityView.HasFragmentData<FMassUnitTransformFragment>() ||
         !EntityView.HasFragmentData<FMassUnitNavigationFragment>())
     {
         return false;
     }
     
     // Get fragments
-    const FTransformFragment& TransformFragment = EntityView.GetFragmentData<FTransformFragment>();
+    const FMassUnitTransformFragment& TransformFragment = EntityView.GetFragmentData<FMassUnitTransformFragment>();
     FMassUnitNavigationFragment& NavigationFragment = EntityView.GetFragmentData<FMassUnitNavigationFragment>();
     
     // Get current location
@@ -169,7 +164,7 @@ void UMassUnitNavigationSystem::ProcessPathRequestBatch(int32 BatchSize)
             FPathRequest& Request = PathRequestQueue[0];
             
             // Get entity manager
-            FMassEntityManager& EntityManager = EntitySubsystem->GetMutableEntityManager();
+            FMassUnitEntityManagerFallback& EntityManager = *EntitySubsystem->GetMutableUnitEntityManager();
             
             // Skip if entity is invalid
             if (!Request.Entity.IsValid() || !EntityManager.IsEntityValid(Request.Entity))
@@ -179,17 +174,17 @@ void UMassUnitNavigationSystem::ProcessPathRequestBatch(int32 BatchSize)
             }
             
             // Get entity view
-            FMassEntityView EntityView(EntityManager, Request.Entity);
+            FMassUnitEntityView EntityView(EntityManager, Request.Entity);
             
             // Skip if missing required fragments
-            if (!EntityView.HasFragmentData<FTransformFragment>())
+            if (!EntityView.HasFragmentData<FMassUnitTransformFragment>())
             {
                 PathRequestQueue.RemoveAt(0);
                 continue;
             }
             
             // Get fragments
-            const FTransformFragment& TransformFragment = EntityView.GetFragmentData<FTransformFragment>();
+            const FMassUnitTransformFragment& TransformFragment = EntityView.GetFragmentData<FMassUnitTransformFragment>();
             
             // Get current location
             FVector CurrentLocation = TransformFragment.GetTransform().GetLocation();
@@ -225,7 +220,7 @@ void UMassUnitNavigationSystem::HandlePathRequestComplete(uint32 PathId, ENaviga
     }
     
     // Get path owner
-    FMassEntityHandle Entity = FMassEntityHandle();
+    FMassUnitEntityHandle Entity = FMassUnitEntityHandle();
     
     // Find entity for this path
     for (auto& Pair : EntityPathMap)
@@ -248,7 +243,7 @@ void UMassUnitNavigationSystem::HandlePathRequestComplete(uint32 PathId, ENaviga
     UpdateEntityWithPath(Entity, Path);
 }
 
-void UMassUnitNavigationSystem::UpdateEntityWithPath(FMassEntityHandle Entity, const FNavPathSharedPtr& Path)
+void UMassUnitNavigationSystem::UpdateEntityWithPath(FMassUnitEntityHandle Entity, const FNavPathSharedPtr& Path)
 {
     // Skip if not initialized
     if (!EntitySubsystem)
@@ -257,7 +252,7 @@ void UMassUnitNavigationSystem::UpdateEntityWithPath(FMassEntityHandle Entity, c
     }
     
     // Get entity manager
-    FMassEntityManager& EntityManager = EntitySubsystem->GetMutableEntityManager();
+    FMassUnitEntityManagerFallback& EntityManager = *EntitySubsystem->GetMutableUnitEntityManager();
     
     // Skip if entity is invalid
     if (!Entity.IsValid() || !EntityManager.IsEntityValid(Entity))
@@ -266,7 +261,7 @@ void UMassUnitNavigationSystem::UpdateEntityWithPath(FMassEntityHandle Entity, c
     }
     
     // Get entity view
-    FMassEntityView EntityView(EntityManager, Entity);
+    FMassUnitEntityView EntityView(EntityManager, Entity);
     
     // Skip if missing required fragments
     if (!EntityView.HasFragmentData<FMassUnitNavigationFragment>())

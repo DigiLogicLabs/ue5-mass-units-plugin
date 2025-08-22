@@ -1,4 +1,4 @@
-// Copyright Your Company. All Rights Reserved.
+// Copyright Digi Logic Labs LLC. All Rights Reserved.
 
 #pragma once
 
@@ -9,17 +9,12 @@
 
 // Using native GAS classes
 
+#include "Entity/MassEntityFallback.h"
 #include "GASUnitIntegration.generated.h"
 
 class UAbilitySystemComponent;
 class UGameplayAbility;
 class UGameplayEffect;
-// Forward declare UMassEntitySubsystem if not including the full header
-#if !WITH_MASSENTITY
-class UMassEntitySubsystem;
-#else
-#include "MassEntitySubsystem.h" // Include full definition when MassEntity is enabled
-#endif
 class UAttributeSet;
 
 /**
@@ -35,7 +30,7 @@ public:
     virtual ~UGASUnitIntegration();
 
     /** Initialize the GAS integration */
-    void Initialize(UMassEntitySubsystem* InEntitySubsystem);
+    void Initialize(UMassUnitEntitySubsystem* InEntitySubsystem);
     
     /** Deinitialize the GAS integration */
     void Deinitialize();
@@ -56,52 +51,39 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Mass Unit System")
     bool ApplyGameplayEffect(FMassUnitHandle UnitHandle, TSubclassOf<UGameplayEffect> EffectClass, AActor* Instigator = nullptr);
     
-    /** Get an attribute value for an entity */
-    UFUNCTION(BlueprintCallable, Category = "Mass Unit System")
-    float GetAttributeValue(FMassUnitHandle UnitHandle, FGameplayAttribute Attribute);
-    
-    /** Set an attribute value for an entity */
-    UFUNCTION(BlueprintCallable, Category = "Mass Unit System")
-    bool SetAttributeValue(FMassUnitHandle UnitHandle, FGameplayAttribute Attribute, float Value);
+    // ...existing code...
     
     /** Internal method to get the ability system component for an entity */
-    UAbilitySystemComponent* GetAbilitySystemForEntityInternal(FMassEntityHandle Entity);
+    UAbilitySystemComponent* GetAbilitySystemForEntityInternal(FMassUnitEntityHandle Entity);
     
     /** Internal method to grant an ability to an entity */
-    FGameplayAbilitySpecHandle GrantAbilityInternal(FMassEntityHandle Entity, TSubclassOf<UGameplayAbility> AbilityClass, int32 Level = 1);
+    FGameplayAbilitySpecHandle GrantAbilityInternal(FMassUnitEntityHandle Entity, TSubclassOf<UGameplayAbility> AbilityClass, int32 Level = 1);
     
     /** Internal method to activate an ability for an entity */
-    bool ActivateAbilityInternal(FMassEntityHandle Entity, FGameplayTag AbilityTag);
+    bool ActivateAbilityInternal(FMassUnitEntityHandle Entity, FGameplayTag AbilityTag);
     
     /** Internal method to apply a gameplay effect to an entity */
-    bool ApplyGameplayEffectInternal(FMassEntityHandle Entity, TSubclassOf<UGameplayEffect> EffectClass, AActor* Instigator = nullptr);
+    bool ApplyGameplayEffectInternal(FMassUnitEntityHandle Entity, TSubclassOf<UGameplayEffect> EffectClass, AActor* Instigator = nullptr);
     
-    /** Internal method to get an attribute value for an entity */
-    float GetAttributeValueInternal(FMassEntityHandle Entity, FGameplayAttribute Attribute);
-    
-    /** Internal method to set an attribute value for an entity */
-    bool SetAttributeValueInternal(FMassEntityHandle Entity, FGameplayAttribute Attribute, float Value);
-    
-    /** Update attributes from entity data */
-    void UpdateAttributes(FMassEntityHandle Entity, const TMap<FGameplayAttribute, float>& Attributes);
+    // ...existing code...
 
 private:
     /** Reference to the Mass Entity Subsystem */
     UPROPERTY(Transient)
-    UMassEntitySubsystem* EntitySubsystem;
+    UMassUnitEntitySubsystem* EntitySubsystem;
     
     /** Map of entity handles to ability system components */
-    TMap<FMassEntityHandle, UAbilitySystemComponent*> EntityASCMap;
+    TMap<FMassUnitEntityHandle, UAbilitySystemComponent*> EntityASCMap;
     
     /** Map of entity handles to attribute sets */
-    TMap<FMassEntityHandle, UAttributeSet*> EntityAttributeSetMap;
+    TMap<FMassUnitEntityHandle, UAttributeSet*> EntityAttributeSetMap;
     
     /** Create an ability system component for an entity */
-    UAbilitySystemComponent* CreateAbilitySystemForEntity(FMassEntityHandle Entity);
+    UAbilitySystemComponent* CreateAbilitySystemForEntity(FMassUnitEntityHandle Entity);
     
     /** Sync entity data with ability system */
-    void SyncEntityWithAbilitySystem(FMassEntityHandle Entity);
+    void SyncEntityWithAbilitySystem(FMassUnitEntityHandle Entity);
     
     /** Sync ability system with entity data */
-    void SyncAbilitySystemWithEntity(FMassEntityHandle Entity);
+    void SyncAbilitySystemWithEntity(FMassUnitEntityHandle Entity);
 };

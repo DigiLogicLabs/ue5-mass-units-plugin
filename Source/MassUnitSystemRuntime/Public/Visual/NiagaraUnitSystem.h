@@ -1,4 +1,4 @@
-// Copyright Your Company. All Rights Reserved.
+// Copyright Digi Logic Labs LLC. All Rights Reserved.
 
 #pragma once
 
@@ -6,9 +6,8 @@
 #include "NiagaraSystem.h"
 #include "NiagaraComponent.h"
 #include "Entity/MassUnitEntityManager.h"
+#include "Entity/MassEntityFallback.h"
 #include "NiagaraUnitSystem.generated.h"
-
-class UMassEntitySubsystem;
 class UVertexAnimationManager;
 
 /**
@@ -24,13 +23,13 @@ public:
     virtual ~UNiagaraUnitSystem();
 
     /** Initialize the Niagara unit system */
-    void Initialize(UWorld* InWorld, UMassEntitySubsystem* InEntitySubsystem);
+    void Initialize(UWorld* InWorld, UMassUnitEntitySubsystem* InEntitySubsystem);
     
     /** Deinitialize the Niagara unit system */
     void Deinitialize();
     
     /** Update unit visuals (internal, not exposed to Blueprint) */
-    void UpdateUnitVisuals(const TArray<FMassEntityHandle>& Entities);
+    void UpdateUnitVisuals(const TArray<FMassUnitEntityHandle>& Entities);
     
     /** Update unit visuals (Blueprint-friendly version) */
     UFUNCTION(BlueprintCallable, Category = "Mass Unit System")
@@ -54,7 +53,7 @@ private:
     
     /** Reference to the Mass Entity Subsystem */
     UPROPERTY(Transient)
-    UMassEntitySubsystem* EntitySubsystem;
+    UMassUnitEntitySubsystem* EntitySubsystem;
     
     /** Niagara system asset */
     UPROPERTY(Transient)
@@ -86,5 +85,5 @@ private:
     void CreateNiagaraSystem();
     
     /** Update unit data in Niagara */
-    void UpdateUnitData(const TArray<FMassEntityHandle>& Entities);
+    void UpdateUnitData(const TArray<FMassUnitEntityHandle>& Entities);
 };

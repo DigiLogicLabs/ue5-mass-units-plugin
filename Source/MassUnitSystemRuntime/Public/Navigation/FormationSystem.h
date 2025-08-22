@@ -1,13 +1,12 @@
-// Copyright Your Company. All Rights Reserved.
+// Copyright Digi Logic Labs LLC. All Rights Reserved.
 
 #pragma once
 
 #include "CoreMinimal.h"
 #include "MassEntityTypes.h"
 #include "Entity/MassUnitEntityManager.h"
+#include "Entity/MassEntityFallback.h"
 #include "FormationSystem.generated.h"
-
-class UMassEntitySubsystem;
 
 /**
  * System for managing unit formations in the Mass Unit System
@@ -22,7 +21,7 @@ public:
     virtual ~UFormationSystem();
 
     /** Initialize the formation system */
-    void Initialize(UMassEntitySubsystem* InEntitySubsystem);
+    void Initialize(UMassUnitEntitySubsystem* InEntitySubsystem);
     
     /** Deinitialize the formation system */
     void Deinitialize();
@@ -36,17 +35,17 @@ public:
     
     /** Add an entity to a formation */
     UFUNCTION(BlueprintCallable, Category = "Mass Unit System")
-    bool AddEntityToFormation(FMassUnitHandle UnitHandle, int32 FormationHandle);
+    bool AddEntityToFormation(FMassUnitEntityHandle Entity, int32 FormationHandle);
     
     /** Remove an entity from a formation */
     UFUNCTION(BlueprintCallable, Category = "Mass Unit System")
-    bool RemoveEntityFromFormation(FMassUnitHandle UnitHandle);
+    bool RemoveEntityFromFormation(FMassUnitEntityHandle Entity);
     
     /** Internal method to add an entity to a formation */
-    bool AddEntityToFormationInternal(FMassEntityHandle Entity, int32 FormationHandle);
+    bool AddEntityToFormationInternal(FMassUnitEntityHandle Entity, int32 FormationHandle);
     
     /** Internal method to remove an entity from a formation */
-    bool RemoveEntityFromFormationInternal(FMassEntityHandle Entity);
+    bool RemoveEntityFromFormationInternal(FMassUnitEntityHandle Entity);
     
     /** Set formation target location */
     UFUNCTION(BlueprintCallable, Category = "Mass Unit System")
@@ -66,15 +65,15 @@ public:
     
     /** Get entities in formation */
     UFUNCTION(BlueprintCallable, Category = "Mass Unit System")
-    TArray<FMassUnitHandle> GetEntitiesInFormation(int32 FormationHandle) const;
+    TArray<FMassUnitEntityHandle> GetEntitiesInFormation(int32 FormationHandle) const;
     
     /** Internal method to get entities in formation */
-    TArray<FMassEntityHandle> GetEntitiesInFormationInternal(int32 FormationHandle) const;
+    TArray<FMassUnitEntityHandle> GetEntitiesInFormationInternal(int32 FormationHandle) const;
 
 private:
     /** Reference to the Mass Entity Subsystem */
     UPROPERTY(Transient)
-    UMassEntitySubsystem* EntitySubsystem;
+    UMassUnitEntitySubsystem* EntitySubsystem;
     
     /** Structure for formation data */
     struct FFormationData
@@ -84,8 +83,8 @@ private:
         FVector TargetLocation;
         FName FormationType;
         FName FormationShape;
-        TArray<FMassEntityHandle> Entities;
-        TMap<FMassEntityHandle, int32> EntitySlots;
+    TArray<FMassUnitEntityHandle> Entities;
+    TMap<FMassUnitEntityHandle, int32> EntitySlots;
         float FormationWidth;
         float FormationDepth;
         float UnitSpacing;
@@ -109,7 +108,7 @@ private:
     TMap<int32, FFormationData> Formations;
     
     /** Map of entity handles to formation handles */
-    TMap<FMassEntityHandle, int32> EntityFormationMap;
+    TMap<FMassUnitEntityHandle, int32> EntityFormationMap;
     
     /** Next formation handle */
     int32 NextFormationHandle;
@@ -124,8 +123,8 @@ private:
     FVector CalculateSlotPosition(const FFormationData& Formation, int32 SlotIndex);
     
     /** Assign slot to entity */
-    int32 AssignSlotToEntity(FFormationData& Formation, FMassEntityHandle Entity);
+    int32 AssignSlotToEntity(FFormationData& Formation, FMassUnitEntityHandle Entity);
     
     /** Update entity formation data */
-    void UpdateEntityFormationData(FMassEntityHandle Entity, int32 FormationHandle, int32 SlotIndex);
+    void UpdateEntityFormationData(FMassUnitEntityHandle Entity, int32 FormationHandle, int32 SlotIndex);
 };

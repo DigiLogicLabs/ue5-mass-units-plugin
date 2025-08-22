@@ -1,4 +1,4 @@
-// Copyright Your Company. All Rights Reserved.
+// Copyright Digi Logic Labs LLC. All Rights Reserved.
 
 #include "Visual/NiagaraUnitSystem.h"
 #include "MassEntitySubsystem.h"
@@ -26,7 +26,7 @@ UNiagaraUnitSystem::~UNiagaraUnitSystem()
 {
 }
 
-void UNiagaraUnitSystem::Initialize(UWorld* InWorld, UMassEntitySubsystem* InEntitySubsystem)
+void UNiagaraUnitSystem::Initialize(UWorld* InWorld, UMassUnitEntitySubsystem* InEntitySubsystem)
 {
     World = InWorld;
     EntitySubsystem = InEntitySubsystem;
@@ -74,8 +74,8 @@ void UNiagaraUnitSystem::Deinitialize()
 
 void UNiagaraUnitSystem::UpdateUnitVisualsByHandles(const TArray<FMassUnitHandle>& UnitHandles)
 {
-    // Convert FMassUnitHandles to FMassEntityHandles
-    TArray<FMassEntityHandle> Entities;
+    // Convert FMassUnitHandles to FMassUnitEntityHandles
+    TArray<FMassUnitEntityHandle> Entities;
     Entities.Reserve(UnitHandles.Num());
     
     for (const FMassUnitHandle& UnitHandle : UnitHandles)
@@ -87,7 +87,7 @@ void UNiagaraUnitSystem::UpdateUnitVisualsByHandles(const TArray<FMassUnitHandle
     UpdateUnitVisuals(Entities);
 }
 
-void UNiagaraUnitSystem::UpdateUnitVisuals(const TArray<FMassEntityHandle>& Entities)
+void UNiagaraUnitSystem::UpdateUnitVisuals(const TArray<FMassUnitEntityHandle>& Entities)
 {
     // Skip if not initialized
     if (!World || !EntitySubsystem || !NiagaraComponent)
@@ -189,7 +189,7 @@ void UNiagaraUnitSystem::CreateNiagaraSystem()
     UE_LOG(LogTemp, Log, TEXT("NiagaraUnitSystem: Created Niagara system"));
 }
 
-void UNiagaraUnitSystem::UpdateUnitData(const TArray<FMassEntityHandle>& Entities)
+void UNiagaraUnitSystem::UpdateUnitData(const TArray<FMassUnitEntityHandle>& Entities)
 {
     // Skip if not initialized
     if (!EntitySubsystem || !NiagaraComponent)
@@ -198,7 +198,7 @@ void UNiagaraUnitSystem::UpdateUnitData(const TArray<FMassEntityHandle>& Entitie
     }
     
     // Get entity manager
-    FMassEntityManager& EntityManager = EntitySubsystem->GetMutableEntityManager();
+    FMassUnitEntityManagerFallback& EntityManager = *EntitySubsystem->GetMutableUnitEntityManager();
     
     // Prepare arrays for Niagara
     TArray<FVector> Positions;
@@ -228,34 +228,34 @@ void UNiagaraUnitSystem::UpdateUnitData(const TArray<FMassEntityHandle>& Entitie
     // Process entities
     for (int32 i = 0; i < NumEntities; ++i)
     {
-        FMassEntityHandle Entity = Entities[i];
-        
+        FMassUnitEntityHandle Entity = Entities[i];
+
         // Skip invalid entities
         if (!Entity.IsValid() || !EntityManager.IsEntityValid(Entity))
         {
             continue;
         }
-        
+
         // Get entity view
-        FMassEntityView EntityView(EntityManager, Entity);
-        
+        FMassUnitEntityView EntityView(EntityManager, Entity);
+
         // Skip if missing required fragments
-        if (!EntityView.HasFragmentData<FTransformFragment>() ||
-            !EntityView.HasFragmentData<FMassVelocityFragment>() ||
+    if (!EntityView.HasFragmentData<FMassUnitTransformFragment>() ||
+            !EntityView.HasFragmentData<FMassUnitVelocityFragment>() ||
             !EntityView.HasFragmentData<FMassUnitVisualFragment>() ||
             !EntityView.HasFragmentData<FMassUnitTeamFragment>() ||
             !EntityView.HasFragmentData<FMassUnitStateFragment>())
         {
             continue;
         }
-        
+
         // Get fragments
-        const FTransformFragment& TransformFragment = EntityView.GetFragmentData<FTransformFragment>();
-        const FMassVelocityFragment& VelocityFragment = EntityView.GetFragmentData<FMassVelocityFragment>();
+    const FMassUnitTransformFragment& TransformFragment = EntityView.GetFragmentData<FMassUnitTransformFragment>();
+        const FMassUnitVelocityFragment& VelocityFragment = EntityView.GetFragmentData<FMassUnitVelocityFragment>();
         const FMassUnitVisualFragment& VisualFragment = EntityView.GetFragmentData<FMassUnitVisualFragment>();
         const FMassUnitTeamFragment& TeamFragment = EntityView.GetFragmentData<FMassUnitTeamFragment>();
         const FMassUnitStateFragment& StateFragment = EntityView.GetFragmentData<FMassUnitStateFragment>();
-        
+
         // Skip if using skeletal mesh
         if (VisualFragment.bUseSkeletalMesh)
         {
@@ -299,12 +299,26 @@ void UNiagaraUnitSystem::UpdateUnitData(const TArray<FMassEntityHandle>& Entitie
     UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayVector(NiagaraComponent, FName("UnitVelocities"), Velocities);
     UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayVector(NiagaraComponent, FName("UnitScales"), Scales);
     UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayQuat(NiagaraComponent, FName("UnitRotations"), Rotations);
-    UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayInt(NiagaraComponent, FName("UnitTeamIDs"), TeamIDs);
-    UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayLinearColor(NiagaraComponent, FName("UnitTeamColors"), TeamColors);
-    UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayInt(NiagaraComponent, FName("UnitAnimationIndices"), AnimationIndices);
+    // Convert int arrays to float arrays for Niagara
+    TArray<float> TeamIDsFloat, AnimationIndicesFloat, LODLevelsFloat, VisibilityFlagsFloat;
+    TeamIDsFloat.Reserve(TeamIDs.Num());
+    for (int32 v : TeamIDs) TeamIDsFloat.Add((float)v);
+    AnimationIndicesFloat.Reserve(AnimationIndices.Num());
+    for (int32 v : AnimationIndices) AnimationIndicesFloat.Add((float)v);
+    LODLevelsFloat.Reserve(LODLevels.Num());
+    for (int32 v : LODLevels) LODLevelsFloat.Add((float)v);
+    VisibilityFlagsFloat.Reserve(VisibilityFlags.Num());
+    for (int32 v : VisibilityFlags) VisibilityFlagsFloat.Add((float)v);
+    UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayFloat(NiagaraComponent, FName("UnitTeamIDs"), TeamIDsFloat);
+    // Convert FLinearColor to FVector for Niagara
+    TArray<FVector> TeamColorsVector;
+    TeamColorsVector.Reserve(TeamColors.Num());
+    for (const FLinearColor& c : TeamColors) TeamColorsVector.Add(FVector(c.R, c.G, c.B));
+    UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayVector(NiagaraComponent, FName("UnitTeamColors"), TeamColorsVector);
+    UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayFloat(NiagaraComponent, FName("UnitAnimationIndices"), AnimationIndicesFloat);
     UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayFloat(NiagaraComponent, FName("UnitAnimationTimes"), AnimationTimes);
-    UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayInt(NiagaraComponent, FName("UnitLODLevels"), LODLevels);
-    UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayInt(NiagaraComponent, FName("UnitVisibilityFlags"), VisibilityFlags);
+    UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayFloat(NiagaraComponent, FName("UnitLODLevels"), LODLevelsFloat);
+    UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayFloat(NiagaraComponent, FName("UnitVisibilityFlags"), VisibilityFlagsFloat);
     
     // Set unit count
     NiagaraComponent->SetIntParameter(FName("UnitCount"), Positions.Num());

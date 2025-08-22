@@ -1,8 +1,9 @@
-// Copyright Your Company. All Rights Reserved.
+// Copyright Digi Logic Labs LLC. All Rights Reserved.
 
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Entity/MassEntityFallback.h"
 #include "MassProcessor.h"
 #include "MassUnitMovementProcessor.generated.h"
 
@@ -17,19 +18,19 @@ class MASSUNITSYSTEMRUNTIME_API UMassUnitMovementProcessor : public UMassProcess
 public:
     UMassUnitMovementProcessor();
 
-protected:
-    /** Configure the processor with required fragments */
-    virtual void ConfigureQueries() override;
-    
-    /** Execute the processor logic */
+    // Unreal override for compatibility
     virtual void Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context) override;
+    // Fallback logic for plugin independence
+    void ExecuteFallback(FMassUnitEntityManagerFallback& EntityManager, FMassUnitExecutionContext& Context);
+    // Query configuration
+    void SetupUnitQueries();
 
 private:
     /** Calculate movement vector for an entity */
-    FVector CalculateMovementVector(FMassEntityManager& EntityManager, FMassEntityHandle Entity, float DeltaTime);
+    FVector CalculateMovementVector(FMassUnitEntityManagerFallback& EntityManager, FMassUnitEntityHandle Entity, float DeltaTime);
 
     /** Entity query for processing units */
-    FMassEntityQuery EntityQuery;
+    FMassUnitEntityQuery EntityQuery;
     
     /** Maximum speed for units */
     UPROPERTY(EditAnywhere, Category = "Movement")

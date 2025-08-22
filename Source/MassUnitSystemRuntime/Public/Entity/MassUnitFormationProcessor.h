@@ -1,8 +1,9 @@
-// Copyright Your Company. All Rights Reserved.
+// Copyright Digi Logic Labs LLC. All Rights Reserved.
 
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Entity/MassEntityFallback.h"
 #include "MassProcessor.h"
 #include "MassUnitFormationProcessor.generated.h"
 
@@ -17,19 +18,19 @@ class MASSUNITSYSTEMRUNTIME_API UMassUnitFormationProcessor : public UMassProces
 public:
     UMassUnitFormationProcessor();
 
-protected:
-    /** Configure the processor with required fragments */
-    virtual void ConfigureQueries() override;
-    
-    /** Execute the processor logic */
+    // Unreal override for compatibility
     virtual void Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context) override;
+    // Fallback logic for plugin independence
+    void ExecuteFallback(FMassUnitEntityManagerFallback& EntityManager, FMassUnitExecutionContext& Context);
+    // Query configuration
+    void SetupUnitQueries();
 
 private:
     /** Calculate formation position for an entity */
-    FVector CalculateFormationPosition(FMassEntityManager& EntityManager, FMassEntityHandle Entity, int32 FormationHandle);
+    FVector CalculateFormationPosition(FMassUnitEntityManagerFallback& EntityManager, FMassUnitEntityHandle Entity, int32 FormationHandle);
 
     /** Entity query for processing units in formations */
-    FMassEntityQuery EntityQuery;
+    FMassUnitEntityQuery EntityQuery;
     
     /** Formation spacing */
     UPROPERTY(EditAnywhere, Category = "Formation")

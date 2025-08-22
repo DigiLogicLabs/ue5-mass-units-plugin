@@ -1,55 +1,52 @@
-// Copyright Your Company. All Rights Reserved.
+// Copyright Digi Logic Labs LLC. All Rights Reserved.
 
 #include "Entity/MassUnitMovementProcessor.h"
 #include "MassUnitCommonFragments.h"
 #include "Entity/MassUnitFragments.h"
-#include "MassEntityView.h"
-#include "MassMovementFragments.h"
-#include "MassNavigationFragments.h"
+
 
 UMassUnitMovementProcessor::UMassUnitMovementProcessor()
 {
-    ExecutionOrder.ExecuteAfter.Add(UE::Mass::ProcessorGroupNames::Movement);
-    ExecutionOrder.ExecuteBefore.Add(UE::Mass::ProcessorGroupNames::LOD);
+    // ExecutionOrder can be set to custom values if needed
 }
 
-void UMassUnitMovementProcessor::ConfigureQueries()
+void UMassUnitMovementProcessor::SetupUnitQueries()
 {
-    EntityQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadWrite);
-    EntityQuery.AddRequirement<FMassVelocityFragment>(EMassFragmentAccess::ReadWrite);
-    EntityQuery.AddRequirement<FMassForceFragment>(EMassFragmentAccess::ReadWrite);
-    EntityQuery.AddRequirement<FMassLookAtFragment>(EMassFragmentAccess::ReadWrite);
-    EntityQuery.AddRequirement<FMassUnitStateFragment>(EMassFragmentAccess::ReadWrite);
-    EntityQuery.AddRequirement<FMassUnitTargetFragment>(EMassFragmentAccess::ReadOnly);
-    EntityQuery.AddRequirement<FMassUnitFormationFragment>(EMassFragmentAccess::ReadOnly);
+    EntityQuery.AddRequirement<FMassUnitTransformFragment>((int)EMassFragmentAccess::ReadWrite);
+    EntityQuery.AddRequirement<FMassUnitVelocityFragment>((int)EMassFragmentAccess::ReadWrite);
+    EntityQuery.AddRequirement<FMassUnitForceFragment>((int)EMassFragmentAccess::ReadWrite);
+    EntityQuery.AddRequirement<FMassUnitLookAtFragment>((int)EMassFragmentAccess::ReadWrite);
+    EntityQuery.AddRequirement<FMassUnitStateFragment>((int)EMassFragmentAccess::ReadWrite);
+    EntityQuery.AddRequirement<FMassUnitTargetFragment>((int)EMassFragmentAccess::ReadOnly);
+    EntityQuery.AddRequirement<FMassUnitFormationFragment>((int)EMassFragmentAccess::ReadOnly);
     
     // Optional fragments
-    EntityQuery.AddTagRequirement<FMassNavigationFragmentTag>(EMassFragmentPresence::Optional);
+    EntityQuery.AddTagRequirement<int>((int)EMassFragmentPresence::Optional);
 }
 
-void UMassUnitMovementProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
+void UMassUnitMovementProcessor::ExecuteFallback(FMassUnitEntityManagerFallback& EntityManager, FMassUnitExecutionContext& Context)
 {
     // Get delta time
     const float DeltaTime = Context.GetDeltaTimeSeconds();
     
     // Process entities
-    EntityQuery.ForEachEntityChunk(EntityManager, Context, [this, &EntityManager, DeltaTime](FMassExecutionContext& Context)
+    EntityQuery.ForEachEntityChunk(EntityManager, Context, [this, &EntityManager, DeltaTime](FMassUnitExecutionContext& Context)
     {
         const int32 NumEntities = Context.GetNumEntities();
-        const TArrayView<FTransformFragment> TransformList = Context.GetMutableFragmentView<FTransformFragment>();
-        const TArrayView<FMassVelocityFragment> VelocityList = Context.GetMutableFragmentView<FMassVelocityFragment>();
-        const TArrayView<FMassForceFragment> ForceList = Context.GetMutableFragmentView<FMassForceFragment>();
-        const TArrayView<FMassLookAtFragment> LookAtList = Context.GetMutableFragmentView<FMassLookAtFragment>();
+    const TArrayView<FMassUnitTransformFragment> TransformList = Context.GetMutableFragmentView<FMassUnitTransformFragment>();
+    const TArrayView<FMassUnitVelocityFragment> VelocityList = Context.GetMutableFragmentView<FMassUnitVelocityFragment>();
+    const TArrayView<FMassUnitForceFragment> ForceList = Context.GetMutableFragmentView<FMassUnitForceFragment>();
+    const TArrayView<FMassUnitLookAtFragment> LookAtList = Context.GetMutableFragmentView<FMassUnitLookAtFragment>();
         const TArrayView<FMassUnitStateFragment> StateList = Context.GetMutableFragmentView<FMassUnitStateFragment>();
         const TConstArrayView<FMassUnitTargetFragment> TargetList = Context.GetFragmentView<FMassUnitTargetFragment>();
         const TConstArrayView<FMassUnitFormationFragment> FormationList = Context.GetFragmentView<FMassUnitFormationFragment>();
         
         for (int32 EntityIndex = 0; EntityIndex < NumEntities; ++EntityIndex)
         {
-            FTransformFragment& TransformFragment = TransformList[EntityIndex];
-            FMassVelocityFragment& VelocityFragment = VelocityList[EntityIndex];
-            FMassForceFragment& ForceFragment = ForceList[EntityIndex];
-            FMassLookAtFragment& LookAtFragment = LookAtList[EntityIndex];
+            FMassUnitTransformFragment& TransformFragment = TransformList[EntityIndex];
+            FMassUnitVelocityFragment& VelocityFragment = VelocityList[EntityIndex];
+            FMassUnitForceFragment& ForceFragment = ForceList[EntityIndex];
+            FMassUnitLookAtFragment& LookAtFragment = LookAtList[EntityIndex];
             FMassUnitStateFragment& StateFragment = StateList[EntityIndex];
             const FMassUnitTargetFragment& TargetFragment = TargetList[EntityIndex];
             const FMassUnitFormationFragment& FormationFragment = FormationList[EntityIndex];
@@ -128,17 +125,22 @@ void UMassUnitMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
     });
 }
 
-FVector UMassUnitMovementProcessor::CalculateMovementVector(FMassEntityManager& EntityManager, FMassEntityHandle Entity, float DeltaTime)
+void UMassUnitMovementProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
+{
+    // Unreal override for compatibility. Redirect to fallback if needed.
+}
+
+FVector UMassUnitMovementProcessor::CalculateMovementVector(FMassUnitEntityManagerFallback& EntityManager, FMassUnitEntityHandle Entity, float DeltaTime)
 {
     FVector MovementVector = FVector::ZeroVector;
     
     // Get entity view
-    FMassEntityView EntityView(EntityManager, Entity);
+    FMassUnitEntityView EntityView(EntityManager, Entity);
     
     // Get fragments
     const FMassUnitTargetFragment& TargetFragment = EntityView.GetFragmentData<FMassUnitTargetFragment>();
     const FMassUnitFormationFragment& FormationFragment = EntityView.GetFragmentData<FMassUnitFormationFragment>();
-    const FTransformFragment& TransformFragment = EntityView.GetFragmentData<FTransformFragment>();
+    const FMassUnitTransformFragment& TransformFragment = EntityView.GetFragmentData<FMassUnitTransformFragment>();
     
     // Priority 1: Formation movement
     if (FormationFragment.IsInFormation())

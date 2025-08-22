@@ -1,4 +1,4 @@
-// Copyright Your Company. All Rights Reserved.
+// Copyright Digi Logic Labs LLC. All Rights Reserved.
 
 #pragma once
 
@@ -6,7 +6,7 @@
 #include "Engine/DataAsset.h"
 #include "GameplayTagContainer.h"
 #include "GameplayAbilitySpec.h"
-#include "MassEntityTypes.h"
+#include "Entity/MassEntityFallback.h" // For FMassUnitFragmentRequirementDescription
 #include "UnitTemplate.generated.h"
 
 /**
@@ -88,10 +88,8 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Unit Template|Team")
     FGameplayTag TeamFaction;
 
-    /** Base attributes for the unit */
-    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Unit Template|Attributes")
-    TMap<FGameplayAttribute, float> BaseAttributes;
+    // ...existing code...
 
-    /** Get the required fragments for this unit template */
-    TArray<FMassFragmentRequirementDescription> GetRequiredFragments() const;
+    /** Get the required fragments for this unit template (custom fallback fragments) */
+    TArray<FMassUnitFragmentRequirementDescription> GetRequiredFragments() const;
 };
