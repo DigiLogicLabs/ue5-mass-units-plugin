@@ -2,13 +2,13 @@
 
 ## Introduction
 
-This guide provides instructions for using the UE5 Large-Scale Unit System Plugin in your Unreal Engine 5.5 project. The plugin enables the rendering and simulation of thousands of units on screen simultaneously, with seamless integration with the Gameplay Ability System (GAS) and GASCompanion.
+This guide provides instructions for using the UE5 Large-Scale Unit System Plugin in your Unreal Engine 5.6 project. The plugin enables the rendering and simulation of thousands of units on screen simultaneously, with seamless integration with the Gameplay Ability System (GAS) and GASCompanion.
 
 ## Prerequisites
 
 Before using this plugin, ensure you have:
 
-- Unreal Engine 5.5 or later
+- Unreal Engine 5.6 or later
 - GASCompanion Plugin installed and configured
 - Basic knowledge of Unreal Engine's Mass Entity System, Niagara, and GAS
 
@@ -268,6 +268,6 @@ For detailed API documentation, refer to the Technical Specification document an
 
 ## Conclusion
 
-The UE5 Large-Scale Unit System Plugin provides a powerful foundation for creating games with thousands of units. By following this guide, you can effectively integrate and utilize the plugin in your Unreal Engine 5.5 project with GASCompanion.
+The UE5 Large-Scale Unit System Plugin provides a powerful foundation for creating games with thousands of units. By following this guide, you can effectively integrate and utilize the plugin in your Unreal Engine 5.6 project with GASCompanion.
 
 For additional support, refer to the example projects and the implementation roadmap for future enhancements.

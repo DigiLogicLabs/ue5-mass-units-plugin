@@ -2,13 +2,13 @@
 
 ## Overview
 
-This guide provides instructions for building the Mass Unit System plugin and implementing it in your Unreal Engine 5.5 project. The plugin enables large-scale unit simulation with Gameplay Ability System (GAS) integration, making it ideal for games with massive enemy swarms.
+This guide provides instructions for building the Mass Unit System plugin and implementing it in your Unreal Engine 5.6 project. The plugin enables large-scale unit simulation with Gameplay Ability System (GAS) integration, making it ideal for games with massive enemy swarms.
 
 ## Building the Plugin
 
 ### Prerequisites
 
-- Unreal Engine 5.5 or later installed
+- Unreal Engine 5.6 or later installed
 - Visual Studio 2022 or later with C++ support
 - Basic knowledge of Unreal Engine plugin development
 
@@ -44,8 +44,8 @@ This guide provides instructions for building the Mass Unit System plugin and im
 
 - **Compilation Errors**:
   - Check the build log for specific error messages
-  - Verify that your Unreal Engine version is 5.5 or later
-  - Ensure your C++ compiler is compatible with UE5.5
+  - Verify that your Unreal Engine version is 5.6 or later
+  - Ensure your C++ compiler is compatible with UE5.6
 
 ## Plugin Implementation
 

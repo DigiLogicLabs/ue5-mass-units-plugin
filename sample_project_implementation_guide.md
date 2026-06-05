@@ -2,13 +2,13 @@
 
 ## Introduction
 
-This guide provides step-by-step instructions for implementing the Mass Unit System plugin in a sample Unreal Engine 5.5 project. By following these steps, you'll be able to create a demonstration of large-scale unit simulation using the plugin's features.
+This guide provides step-by-step instructions for implementing the Mass Unit System plugin in a sample Unreal Engine 5.6 project. By following these steps, you'll be able to create a demonstration of large-scale unit simulation using the plugin's features.
 
 ## Prerequisites
 
 Before starting, ensure you have:
 
-- Unreal Engine 5.5 or later installed
+- Unreal Engine 5.6 or later installed
 - A new or existing UE5 project
 - The Mass Unit System plugin installed in your project
 - GASCompanion plugin installed and enabled
@@ -18,7 +18,7 @@ Before starting, ensure you have:
 
 1. **Create or Open a Project**:
    - Create a new project using the Third Person template, or open your existing project
-   - Ensure the project is using Unreal Engine 5.5 or later
+   - Ensure the project is using Unreal Engine 5.6 or later
 
 2. **Enable Required Plugins**:
    - Open the Plugins window (Edit > Plugins)
@@ -291,6 +291,6 @@ Before starting, ensure you have:
 
 ## Conclusion
 
-By following these steps, you've created a sample project that demonstrates the capabilities of the Mass Unit System plugin. This project can serve as a foundation for your own game development or as a learning resource for understanding large-scale unit simulation in Unreal Engine 5.5.
+By following these steps, you've created a sample project that demonstrates the capabilities of the Mass Unit System plugin. This project can serve as a foundation for your own game development or as a learning resource for understanding large-scale unit simulation in Unreal Engine 5.6.
 
 For more advanced usage, refer to the plugin's technical documentation and API reference.

@@ -12,9 +12,11 @@ UGASUnitIntegration::~UGASUnitIntegration()
 }
 
 void UGASUnitIntegration::Initialize(UMassUnitEntitySubsystem* InEntitySubsystem)
-{
-	// Stub implementation
-}
+414	{
+415		// NOTE: This is a stub implementation. Native GAS integration is planned for a future update.
+416		// For now, this function only provides a placeholder for initialization logic.
+417		// Stub implementation
+418	}
 
 void UGASUnitIntegration::Deinitialize()
 {
@@ -22,10 +24,12 @@ void UGASUnitIntegration::Deinitialize()
 }
 
 UAbilitySystemComponent* UGASUnitIntegration::GetAbilitySystemForEntity(FMassUnitHandle UnitHandle)
-{
-	// Stub implementation
-	return nullptr;
-}
+423	{
+424		// NOTE: Native GAS integration is currently a placeholder. 
+425		// This will return nullptr until the full implementation is completed.
+426		// Stub implementation
+427		return nullptr;
+428	}
 
 FGameplayAbilitySpecHandle UGASUnitIntegration::GrantAbility(FMassUnitHandle UnitHandle, TSubclassOf<UGameplayAbility> AbilityClass, int32 Level)
 {

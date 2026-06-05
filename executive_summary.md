@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-This document provides a comprehensive solution for implementing a high-performance large-scale unit system plugin for Unreal Engine 5.5. The plugin is designed to enable the rendering and simulation of thousands of units on screen simultaneously, with seamless integration with the Gameplay Ability System (GAS) and GASCompanion.
+This document provides a comprehensive solution for implementing a high-performance large-scale unit system plugin for Unreal Engine 5.6. The plugin is designed to enable the rendering and simulation of thousands of units on screen simultaneously, with seamless integration with the Gameplay Ability System (GAS) and GASCompanion.
 
 ## Key Features
 

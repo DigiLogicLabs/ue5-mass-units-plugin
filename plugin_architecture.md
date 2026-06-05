@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document outlines the architecture for a high-performance large-scale unit system plugin for Unreal Engine 5.5. The plugin is designed to enable the rendering and simulation of thousands of units on screen simultaneously, with seamless integration with the Gameplay Ability System (GAS) and GASCompanion.
+This document outlines the architecture for a high-performance large-scale unit system plugin for Unreal Engine 5.6. The plugin is designed to enable the rendering and simulation of thousands of units on screen simultaneously, with seamless integration with the Gameplay Ability System (GAS) and GASCompanion.
 
 ## Core Design Principles
 
@@ -155,7 +155,7 @@ This document outlines the architecture for a high-performance large-scale unit 
 
 ## Technical Requirements
 
-1. **Unreal Engine 5.5**
+1. **Unreal Engine 5.6**
 2. **C++ Implementation** for core systems
 3. **Blueprint Exposure** for customization
 4. **GASCompanion Plugin**

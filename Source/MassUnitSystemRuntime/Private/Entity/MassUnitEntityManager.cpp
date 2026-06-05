@@ -32,6 +32,9 @@ FMassUnitHandle UMassUnitEntityManager::CreateUnitFromTemplate(UUnitTemplate* Te
         return FMassUnitHandle();
     }
     FMassUnitEntityManagerFallback& EntityManager = *EntitySubsystem->GetMutableUnitEntityManager();
+    
+    // NOTE: Utilizing a custom fallback layer for entity management. 
+    // This provides compatibility and basic functionality while native Mass Entity System integration is being finalized.
     // Create entity with required fragments (custom fallback logic)
     FMassUnitEntityHandle EntityHandle = EntityManager.CreateEntity(); // Use fallback creation
     FMassUnitEntityView EntityView(EntityManager, EntityHandle);

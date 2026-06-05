@@ -3,7 +3,7 @@
 ## 1. Introduction
 
 ### 1.1 Purpose
-This technical specification details the implementation of a high-performance large-scale unit system plugin for Unreal Engine 5.5. The plugin enables the rendering and simulation of thousands of units on screen simultaneously, with seamless integration with the Gameplay Ability System (GAS) and GASCompanion.
+This technical specification details the implementation of a high-performance large-scale unit system plugin for Unreal Engine 5.6. The plugin enables the rendering and simulation of thousands of units on screen simultaneously, with seamless integration with the Gameplay Ability System (GAS) and GASCompanion.
 
 ### 1.2 Scope
 The plugin provides a complete solution for:
@@ -29,7 +29,7 @@ The plugin follows a layered architecture with five primary layers:
 5. Configuration and Customization Layer
 
 ### 2.2 Dependencies
-- Unreal Engine 5.5
+- Unreal Engine 5.6
 - GASCompanion Plugin
 - Niagara Plugin
 
