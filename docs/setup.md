@@ -1,7 +1,7 @@
 # Setup Guide
 
 ## Prerequisites
-- Unreal Engine 5.5 or later installed.
+- Unreal Engine 5.6 or later installed.
 - Project configured to use the **Gameplay Ability System (GAS)**.
 
 ## Installation

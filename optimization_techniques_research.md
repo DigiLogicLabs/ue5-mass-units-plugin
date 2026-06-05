@@ -1,7 +1,7 @@
 # Optimization Techniques for Large-Scale Unit Simulations
 
 ## Overview
-This document outlines key optimization techniques for large-scale unit simulations in Unreal Engine 5.5. These techniques are essential for achieving high performance when rendering and simulating thousands of units simultaneously.
+This document outlines key optimization techniques for large-scale unit simulations in Unreal Engine 5.6. These techniques are essential for achieving high performance when rendering and simulating thousands of units simultaneously.
 
 ## Data-Oriented Design
 

@@ -1,7 +1,7 @@
 # Product Requirements Document (PRD)
 
 ## Introduction
-This plugin provides a highly optimized solution for managing large-scale unit systems in Unreal Engine 5.5. It leverages the **Gameplay Ability System (GAS)** for AI behaviors and abilities, making it ideal for games with massive enemy swarms, such as roguelikes or strategy games.
+This plugin provides a highly optimized solution for managing large-scale unit systems in Unreal Engine 5.6. It leverages the **Gameplay Ability System (GAS)** for AI behaviors and abilities, making it ideal for games with massive enemy swarms, such as roguelikes or strategy games.
 
 ## Features
 - **Large-Scale Unit Simulation**: Utilizes Niagara to simulate thousands of units with minimal CPU overhead.
@@ -13,5 +13,5 @@ This plugin provides a highly optimized solution for managing large-scale unit s
 - **Performance Optimizations**: Includes LODs, instanced rendering, and culling to maintain high frame rates.
 
 ## Requirements
-- Unreal Engine 5.5 or later.
+- Unreal Engine 5.6 or later.
 - Basic knowledge of Unreal Engine’s Niagara, navigation systems, and **Gameplay Ability System (GAS)**.

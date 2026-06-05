@@ -1,12 +1,12 @@
 # Mass Unit System Plugin: Integration Guide
 
-This guide provides detailed steps for integrating the Mass Unit System plugin into your existing Unreal Engine 5.5 project. The plugin enables large-scale unit simulation with Gameplay Ability System (GAS) integration, making it ideal for games with massive enemy swarms.
+This guide provides detailed steps for integrating the Mass Unit System plugin into your existing Unreal Engine 5.6 project. The plugin enables large-scale unit simulation with Gameplay Ability System (GAS) integration (Note: GAS integration is currently in a stub/placeholder state), making it ideal for games with massive enemy swarms.
 
 ## Prerequisites
 
 Before integrating the plugin, ensure you have:
 
-- Unreal Engine 5.5 or later installed
+- Unreal Engine 5.6 or later installed
 - An existing UE5 project
 - Basic knowledge of Unreal Engine Blueprint and C++ (for advanced customization)
 
@@ -36,9 +36,13 @@ Before integrating the plugin, ensure you have:
 
 1. Clone or download the plugin repository
 2. Navigate to the plugin directory
-3. Update the `UE_PATH` variable in `build_plugin.bat` to point to your Unreal Engine installation
-4. Run `build_plugin.bat` to build the plugin
-5. Copy the built plugin to your project's `Plugins` directory
+3. Update the `UE_PATH` variable in the build script to point to your Unreal Engine installation:
+   - **Windows**: Edit `build_plugin.bat`
+   - **Linux/macOS**: Edit `build_plugin.sh`
+4. Run the build script:
+   - **Windows**: `build_plugin.bat`
+   - **Linux/macOS**: `./build_plugin.sh`
+5. Copy the built plugin to your project's `Plugins` directory (default output is in the `Build/Plugin` folder).
 
 ## Step 2: Enable Required Dependencies
 
@@ -51,7 +55,7 @@ The Mass Unit System plugin depends on several other plugins. Make sure they are
    - Mass Gameplay
    - Niagara
    - Gameplay Abilities
-   - GASCompanion (optional but recommended)
+   - GASCompanion (Note: Support for GASCompanion is deprecated and will be removed in a future update).
 4. Restart the editor when prompted
 
 ## Step 3: Configure Project Settings
@@ -233,7 +237,9 @@ if (FormationSystem)
 
 ## Step 8: Implement GAS Integration
 
-The GAS Integration system allows units to use Gameplay Abilities.
+**Note: The GAS Integration is currently implemented as a set of stubs/placeholders. Full functionality is planned for a future update.**
+
+The GAS Integration system is designed to allow units to use Gameplay Abilities.
 
 ### Blueprint Implementation
 
@@ -402,6 +408,6 @@ The plugin includes several debugging tools to help identify and fix issues.
 
 ## Conclusion
 
-By following this guide, you should now have the Mass Unit System plugin integrated into your project. The plugin provides a powerful foundation for creating games with thousands of units, with seamless integration with the Gameplay Ability System.
+By following this guide, you should now have the Mass Unit System plugin integrated into your project. The plugin provides a powerful foundation for creating games with thousands of units, with integration with the Gameplay Ability System (currently in a stub/placeholder state).
 
 For more detailed information, refer to the plugin's technical documentation and API reference.

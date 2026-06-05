@@ -2,7 +2,7 @@
 
 ## Overview
 
-This roadmap outlines the development process for implementing the UE5 Large-Scale Unit System Plugin. The implementation is divided into phases, with each phase building upon the previous one to create a complete, high-performance solution for managing thousands of units in Unreal Engine 5.5 with GASCompanion integration.
+This roadmap outlines the development process for implementing the UE5 Large-Scale Unit System Plugin. The implementation is divided into phases, with each phase building upon the previous one to create a complete, high-performance solution for managing thousands of units in Unreal Engine 5.6 with GASCompanion integration.
 
 ## Phase 1: Foundation (Weeks 1-2)
 
@@ -218,7 +218,7 @@ This roadmap outlines the development process for implementing the UE5 Large-Sca
 - Continuous integration server
 
 ### Software Requirements
-- Unreal Engine 5.5
+- Unreal Engine 5.6
 - GASCompanion Plugin
 - Version control system
 - Continuous integration tools
@@ -250,4 +250,4 @@ The implementation will be considered successful when:
 
 ## Conclusion
 
-This implementation roadmap provides a structured approach to developing the UE5 Large-Scale Unit System Plugin. By following this plan, the development team can create a high-performance, feature-rich plugin that meets the requirements for large-scale unit simulation with GASCompanion integration in Unreal Engine 5.5.
+This implementation roadmap provides a structured approach to developing the UE5 Large-Scale Unit System Plugin. By following this plan, the development team can create a high-performance, feature-rich plugin that meets the requirements for large-scale unit simulation with GASCompanion integration in Unreal Engine 5.6.

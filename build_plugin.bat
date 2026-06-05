@@ -2,7 +2,7 @@
 REM Build script for Mass Unit System plugin
 
 REM Set the path to your Unreal Engine installation
-set UE_PATH=D:\Unreal Engine\UE_5.5
+set UE_PATH=D:\Unreal Engine\UE_5.6
 
 REM Set the plugin path
 set PLUGIN_PATH=%~dp0

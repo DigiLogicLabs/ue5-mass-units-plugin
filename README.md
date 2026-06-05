@@ -1,13 +1,13 @@
 # UE5 Mass Unit System Plugin
 
-This plugin provides a high-performance, large-scale unit system for Unreal Engine 5.6, designed to enable the rendering and simulation of thousands of units simultaneously. It features seamless integration with the Gameplay Ability System (GAS) and supports advanced behaviors like dynamic pathfinding and formation management.
+This plugin provides a high-performance, large-scale unit system for Unreal Engine 5.6, designed to enable the rendering and simulation of thousands of units simultaneously. It features integration with the Gameplay Ability System (GAS) (Note: GAS integration is currently in a stub/placeholder state) and supports advanced behaviors like dynamic pathfinding and formation management.
 
 ## Key Features
 
 - **Mass Entity System Integration**: Efficient data-oriented management for large numbers of entities.
 - **Niagara-Based Rendering**: GPU-accelerated rendering for thousands of units.
 - **Vertex Animation System**: High-performance animation without skeletal overhead.
-- **GAS Integration**: Seamless connection with existing GAS workflows.
+- **GAS Integration**: Connection with existing GAS workflows (Note: Currently implemented as stubs, full integration planned).
 - **Dynamic Pathfinding & Formation System**: Efficient navigation and sophisticated formation management.
 - **LOD System**: Performance optimization through level of detail transitions.
 
@@ -53,7 +53,7 @@ The Mass Unit System plugin relies on several other Unreal Engine plugins. Ensur
     -   **Mass Gameplay**
     -   **Niagara**
     -   **Gameplay Abilities**
-    -   **GASCompanion** (optional but highly recommended for full GAS integration)
+    -   **GASCompanion** (Note: Support for GASCompanion is deprecated and will be removed in a future update).
 4.  Restart the Unreal Engine editor when prompted.
 
 ## Usage
