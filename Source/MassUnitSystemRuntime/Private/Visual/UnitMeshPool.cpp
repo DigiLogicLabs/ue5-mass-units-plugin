@@ -1,22 +1,8 @@
 // Copyright Digi Logic Labs LLC. All Rights Reserved.
 
 #include "Visual/UnitMeshPool.h"
-#include "MassEntityTypes.h"
-#include "Entity/MassUnitEntityManager.h"
-#include "Entity/MassEntityFallback.h"
-#include "Entity/MassUnitFragments.h"
-#include "Entity/UnitTemplate.h"
-#include "MassUnitCommonFragments.h"
-#include "MassEntityView.h"
-#include "Components/SkeletalMeshComponent.h"
-#include "Engine/World.h"
-#include "Animation/AnimInstance.h"
-
-// ...existing code...
-// Copyright Digi Logic Labs LLC. All Rights Reserved.
-
-#include "Visual/UnitMeshPool.h"
 #include "MassEntitySubsystem.h"
+#include "Entity/MassUnitEntityManager.h"
 #include "Entity/MassUnitFragments.h"
 #include "Entity/UnitTemplate.h"
 #include "MassUnitCommonFragments.h"
@@ -349,36 +335,21 @@ void UUnitMeshPool::UpdateMeshFromEntity(USkeletalMeshComponent* Mesh, FMassUnit
     // Set transform
     Mesh->SetWorldTransform(TransformFragment.GetTransform());
     
-    // In a real implementation, we would load the skeletal mesh from the unit template
-    // For this example, we'll just log that we're updating the mesh
-    UE_LOG(LogTemp, Verbose, TEXT("UnitMeshPool: Updating mesh for entity %s"), *Entity.ToString());
-    
-    // For a real implementation, we would do something like:
-    /*
-    // Get unit template
-    UUnitTemplate* Template = ...; // Get from entity or cache
-    
-    // Set skeletal mesh
-    if (Template && !Template->SkeletalMesh.IsNull())
+    // Load the skeletal mesh from the visual fragment
+    if (VisualFragment.SkeletalMesh)
     {
-        USkeletalMesh* SkeletalMesh = Template->SkeletalMesh.LoadSynchronous();
-        if (SkeletalMesh)
-        {
-            Mesh->SetSkeletalMesh(SkeletalMesh);
-        }
+        Mesh->SetSkeletalMesh(VisualFragment.SkeletalMesh);
     }
     
-    // Set animation
+    // Set animation state
     if (UAnimInstance* AnimInstance = Mesh->GetAnimInstance())
     {
-        // Set animation state
-        if (UUnitAnimInstance* UnitAnimInstance = Cast<UUnitAnimInstance>(AnimInstance))
-        {
-            UnitAnimInstance->SetAnimationState(StateFragment.CurrentState);
-            UnitAnimInstance->SetAnimationTime(StateFragment.StateTime);
-        }
+        // Note: In a real implementation, we would cast to a specific AnimInstance class
+        // and set parameters based on StateFragment.CurrentState and StateTime.
+        // For now, we'll just log the update.
+        UE_LOG(LogTemp, Verbose, TEXT("UnitMeshPool: Updating animation for entity %s, state %d"), 
+            *Entity.ToString(), (int32)StateFragment.CurrentState);
     }
-    */
     
     // Make mesh visible
     Mesh->SetVisibility(true);

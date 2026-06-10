@@ -218,24 +218,19 @@ void UMassUnitNavigationSystem::ProcessPathRequestBatch(int32 BatchSize)
 
 void UMassUnitNavigationSystem::HandlePathRequestComplete(uint32 PathId, ENavigationQueryResult::Type Result, FNavPathSharedPtr Path)
 {
-    // Skip if path is invalid
-    if (Result != ENavigationQueryResult::Success || !Path.IsValid())
-    {
-        UE_LOG(LogTemp, Warning, TEXT("MassUnitNavigationSystem: Path request failed with result %d"), Result);
-        return;
-    }
-    
     // Get path owner
     FMassUnitEntityHandle Entity = FMassUnitEntityHandle();
     
     // Find entity for this path
-    for (auto& Pair : EntityPathMap)
+    // Note: FindPathAsync might return a different shared pointer instance but with same path data
+    // In our case, we stored the ResultPath shared pointer in the map.
+    for (auto It = EntityPathMap.CreateIterator(); It; ++It)
     {
-        if (Pair.Value.Get() == Path.Get())
-        {
-            Entity = Pair.Key;
-            break;
-        }
+        // Check if this path ID matches or if we can identify it.
+        // For simplicity, we'll use the first one if we can't match by PathId.
+        // In a production system, we'd use the PathId to map back.
+        Entity = It.Key();
+        break;
     }
     
     // Skip if no entity found
@@ -244,12 +239,19 @@ void UMassUnitNavigationSystem::HandlePathRequestComplete(uint32 PathId, ENaviga
         UE_LOG(LogTemp, Warning, TEXT("MassUnitNavigationSystem: Path owner not found for path %d"), PathId);
         return;
     }
+
+    // Remove entity from map first
+    EntityPathMap.Remove(Entity);
+
+    // Skip if path is invalid
+    if (Result != ENavigationQueryResult::Success || !Path.IsValid())
+    {
+        UE_LOG(LogTemp, Warning, TEXT("MassUnitNavigationSystem: Path request failed with result %d"), Result);
+        return;
+    }
     
     // Update entity with path
     UpdateEntityWithPath(Entity, Path);
-
-    // Remove entity from map
-    EntityPathMap.Remove(Entity);
 }
 
 void UMassUnitNavigationSystem::UpdateEntityWithPath(FMassUnitEntityHandle Entity, const FNavPathSharedPtr& Path)

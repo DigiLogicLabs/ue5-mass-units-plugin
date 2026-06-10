@@ -26,24 +26,30 @@ void UMassUnitEntityManager::Initialize(UMassUnitEntitySubsystem* InEntitySubsys
 
 FMassUnitHandle UMassUnitEntityManager::CreateUnitFromTemplate(UUnitTemplate* Template, const FTransform& SpawnTransform)
 {
+    FMassUnitEntityHandle EntityHandle = CreateUnitFromTemplateInternal(Template, SpawnTransform);
+    return FMassUnitHandle(EntityHandle);
+}
+
+FMassUnitEntityHandle UMassUnitEntityManager::CreateUnitFromTemplateInternal(UUnitTemplate* Template, const FTransform& SpawnTransform)
+{
     if (!Template || !EntitySubsystem)
     {
         UE_LOG(LogTemp, Error, TEXT("MassUnitEntityManager: Failed to create unit - invalid template or entity subsystem"));
-        return FMassUnitHandle();
+        return FMassUnitEntityHandle();
     }
     FMassUnitEntityManagerFallback& EntityManager = *EntitySubsystem->GetMutableUnitEntityManager();
     
-    // NOTE: Utilizing a custom fallback layer for entity management. 
-    // This provides compatibility and basic functionality while native Mass Entity System integration is being finalized.
     // Create entity with required fragments (custom fallback logic)
-    FMassUnitEntityHandle EntityHandle = EntityManager.CreateEntity(); // Use fallback creation
+    FMassUnitEntityHandle EntityHandle = EntityManager.CreateEntity();
     FMassUnitEntityView EntityView(EntityManager, EntityHandle);
+
     // Set transform
     if (EntityView.HasFragmentData<FMassUnitTransformFragment>())
     {
         FMassUnitTransformFragment& TransformFragment = EntityView.GetFragmentData<FMassUnitTransformFragment>();
         TransformFragment.SetTransform(SpawnTransform);
     }
+
     // Set unit state
     if (EntityView.HasFragmentData<FMassUnitStateFragment>())
     {
@@ -53,6 +59,7 @@ FMassUnitHandle UMassUnitEntityManager::CreateUnitFromTemplate(UUnitTemplate* Te
         StateFragment.UnitType = Template->UnitType;
         StateFragment.UnitLevel = Template->BaseLevel;
     }
+
     // Set team
     if (EntityView.HasFragmentData<FMassUnitTeamFragment>())
     {
@@ -61,21 +68,33 @@ FMassUnitHandle UMassUnitEntityManager::CreateUnitFromTemplate(UUnitTemplate* Te
         TeamFragment.TeamColor = Template->TeamColor;
         TeamFragment.TeamFaction = Template->TeamFaction;
     }
+
+    // Set visual data
+    if (EntityView.HasFragmentData<FMassUnitVisualFragment>())
+    {
+        FMassUnitVisualFragment& VisualFragment = EntityView.GetFragmentData<FMassUnitVisualFragment>();
+        VisualFragment.SkeletalMesh = Template->SkeletalMesh.LoadSynchronous();
+        VisualFragment.StaticMesh = Template->StaticMesh.LoadSynchronous();
+        VisualFragment.bUseSkeletalMesh = (VisualFragment.SkeletalMesh != nullptr);
+        VisualFragment.bIsVisible = true;
+    }
+
     // Set ability data
     if (EntityView.HasFragmentData<FMassUnitAbilityFragment>())
     {
         FMassUnitAbilityFragment& AbilityFragment = EntityView.GetFragmentData<FMassUnitAbilityFragment>();
-    AbilityFragment.AbilityHandles.Empty();
-    AbilityFragment.ActiveEffectTags.Empty();
-    // ...existing code...
-    // AttributeValues removed from FMassUnitAbilityFragment
+        AbilityFragment.AbilityHandles.Empty();
+        AbilityFragment.ActiveEffectTags.Empty();
     }
+
     // Add to type map
     UnitTypeMap.FindOrAdd(Template->UnitType).Add(EntityHandle);
     // Add to team map
     TeamMap.FindOrAdd(Template->TeamID).Add(EntityHandle);
+
     UE_LOG(LogTemp, Log, TEXT("MassUnitEntityManager: Created unit of type %s for team %d"), *Template->UnitType.ToString(), Template->TeamID);
-    return FMassUnitHandle(EntityHandle);
+    
+    return EntityHandle;
 }
 
 void UMassUnitEntityManager::DestroyUnit(FMassUnitHandle UnitHandle)
