@@ -38,7 +38,11 @@ UMassUnitSubsystem::~UMassUnitSubsystem()
 void UMassUnitSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
     // Get the Mass Entity Subsystem
+#if WITH_MASSENTITY
     EntitySubsystem = Collection.InitializeDependency<UMassUnitEntitySubsystem>();
+#else
+    EntitySubsystem = NewObject<UMassUnitEntitySubsystem>(this);
+#endif
     if (!EntitySubsystem)
     {
         UE_LOG(LogTemp, Error, TEXT("MassUnitSubsystem: Failed to get MassEntitySubsystem"));

@@ -426,10 +426,29 @@ void UFormationSystem::UpdateEntityFormationData(FMassUnitEntityHandle Entity, i
     FMassUnitEntityView EntityView(EntityManager, Entity);
     if (!EntityView.HasFragmentData<FMassUnitFormationFragment>())
         return;
+    FMassUnitFormationFragment& FormationFragment = EntityView.GetFragmentData<FMassUnitFormationFragment>();
+
+    if (FormationHandle == INDEX_NONE)
+    {
+        // Clear formation data
+        FormationFragment.FormationHandle = INDEX_NONE;
+        FormationFragment.FormationSlot = INDEX_NONE;
+        FormationFragment.FormationOffset = FVector::ZeroVector;
+        if (EntityView.HasFragmentData<FMassUnitTargetFragment>())
+        {
+            FMassUnitTargetFragment& TargetFragment = EntityView.GetFragmentData<FMassUnitTargetFragment>();
+            TargetFragment.TargetLocation = FVector::ZeroVector;
+        }
+        return;
+    }
+
     FFormationData* FormationData = Formations.Find(FormationHandle);
     if (!FormationData)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("FormationSystem: Formation %d not found for entity %s"), FormationHandle, *Entity.ToString());
         return;
-    FMassUnitFormationFragment& FormationFragment = EntityView.GetFragmentData<FMassUnitFormationFragment>();
+    }
+
     FormationFragment.FormationHandle = FormationHandle;
     FormationFragment.FormationSlot = SlotIndex;
     FVector SlotOffset = CalculateSlotPosition(*FormationData, SlotIndex);
@@ -441,3 +460,22 @@ void UFormationSystem::UpdateEntityFormationData(FMassUnitEntityHandle Entity, i
     }
 }
 // End of file
+
+bool UFormationSystem::AddEntityToFormationInternal(FMassUnitEntityHandle Entity, int32 FormationHandle)
+{
+    // Placeholder implementation
+    return false;
+}
+
+bool UFormationSystem::RemoveEntityFromFormationInternal(FMassUnitEntityHandle Entity)
+{
+    // Placeholder implementation
+    return false;
+}
+
+TArray<FMassUnitEntityHandle> UFormationSystem::GetEntitiesInFormationInternal(int32 FormationHandle) const
+{
+    // Placeholder implementation
+    return TArray<FMassUnitEntityHandle>();
+}
+

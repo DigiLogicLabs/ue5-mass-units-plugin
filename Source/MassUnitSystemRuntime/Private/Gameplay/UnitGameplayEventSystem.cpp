@@ -69,3 +69,28 @@ void UUnitGameplayEventSystem::UnregisterListener(FGameplayTag EventTag, FDelega
         UE_LOG(LogTemp, Log, TEXT("UnitGameplayEventSystem: Unregistered listener for event %s"), *EventTag.ToString());
     }
 }
+
+void UUnitGameplayEventSystem::RegisterListener(FGameplayTag EventTag, const FOnGameplayEvent& Listener)
+{
+    if (!EventTag.IsValid())
+    {
+        return;
+    }
+    FOnGameplayEvent& Listeners = EventListeners.FindOrAdd(EventTag);
+    Listeners.Add(Listener);
+    UE_LOG(LogTemp, Log, TEXT("UnitGameplayEventSystem: Registered listener for event %s"), *EventTag.ToString());
+}
+
+void UUnitGameplayEventSystem::UnregisterListener(FGameplayTag EventTag, const FOnGameplayEvent& Listener)
+{
+    if (!EventTag.IsValid())
+    {
+        return;
+    }
+    FOnGameplayEvent* Listeners = EventListeners.Find(EventTag);
+    if (Listeners)
+    {
+        Listeners->Remove(Listener);
+        UE_LOG(LogTemp, Log, TEXT("UnitGameplayEventSystem: Unregistered listener for event %s"), *EventTag.ToString());
+    }
+}

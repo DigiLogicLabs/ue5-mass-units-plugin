@@ -2,7 +2,7 @@
 
 ## Prerequisites
 - Unreal Engine 5.6 or later installed.
-- Project configured to use the **Gameplay Ability System (GAS)**.
+- Project configured to use the **Gameplay Ability System (GAS)**. Note: The current GAS integration is a structural shell intended for future implementation.
 
 ## Installation
 1. Download the plugin package.
@@ -16,5 +16,4 @@
 - Set up vertex animation materials if using custom animations.
 
 ## Initial Testing
-- Use the provided sample level to see the plugin in action.
 - Experiment with spawning different numbers of units to test performance.

@@ -10,6 +10,8 @@
 #include "NiagaraDataInterfaceArrayFunctionLibrary.h"
 #include "NiagaraFunctionLibrary.h"
 #include "Engine/World.h"
+#include "Engine/Engine.h"
+#include "UObject/ConstructorHelpers.h"
 
 UNiagaraUnitSystem::UNiagaraUnitSystem()
     : World(nullptr)
@@ -152,8 +154,16 @@ void UNiagaraUnitSystem::CreateNiagaraSystem()
     // For this example, we'll assume it's already loaded
     // NiagaraSystemAsset = LoadObject<UNiagaraSystem>(nullptr, TEXT("/Game/MassUnitSystem/NS_UnitSystem"));
     
-    // For now, create a dummy Niagara system
-    NiagaraSystemAsset = NewObject<UNiagaraSystem>(this);
+    // Load Niagara system asset from the plugin's content folder
+    static ConstructorHelpers::FObjectFinder<UNiagaraSystem> NiagaraSystemAssetFinder(TEXT("/MassUnitSystem/NS_UnitSystem"));
+    if (NiagaraSystemAssetFinder.Succeeded())
+    {
+        NiagaraSystemAsset = NiagaraSystemAssetFinder.Object;
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("NiagaraUnitSystem: Failed to find default Niagara system asset at /MassUnitSystem/NS_UnitSystem"));
+    }
     
     // Skip if failed to load
     if (!NiagaraSystemAsset)

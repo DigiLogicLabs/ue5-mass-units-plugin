@@ -1,10 +1,13 @@
 // Copyright Digi Logic Labs LLC. All Rights Reserved.
 
 #include "Navigation/MassUnitNavigationSystem.h"
+#if WITH_MASSENTITY
 #include "MassEntitySubsystem.h"
 #include "Entity/MassUnitFragments.h"
 #include "MassUnitCommonFragments.h"
 #include "MassEntityView.h"
+#include "MassEntityTypes.h"
+#endif
 #include "NavigationSystem.h"
 #include "NavigationPath.h"
 #include "NavMesh/RecastNavMesh.h"
@@ -192,6 +195,9 @@ void UMassUnitNavigationSystem::ProcessPathRequestBatch(int32 BatchSize)
             // Create path finding query
             FPathFindingQuery Query(nullptr, *NavigationData, CurrentLocation, Request.Destination);
             
+            // Add entity to map
+            EntityPathMap.Add(Request.Entity, Request.ResultPath);
+
             // Find path async
             NavigationSystem->FindPathAsync(FNavAgentProperties::DefaultProperties, Query, Request.Delegate);
             
@@ -241,6 +247,9 @@ void UMassUnitNavigationSystem::HandlePathRequestComplete(uint32 PathId, ENaviga
     
     // Update entity with path
     UpdateEntityWithPath(Entity, Path);
+
+    // Remove entity from map
+    EntityPathMap.Remove(Entity);
 }
 
 void UMassUnitNavigationSystem::UpdateEntityWithPath(FMassUnitEntityHandle Entity, const FNavPathSharedPtr& Path)
