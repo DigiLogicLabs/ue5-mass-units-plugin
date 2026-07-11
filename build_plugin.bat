@@ -1,44 +1,49 @@
 @echo off
-REM Build script for Mass Unit System plugin
+setlocal
 
-REM Set the path to your Unreal Engine installation
-REM Set the path to your Unreal Engine installation
-IF NOT "%UE_ENGINE_PATH%" == "" (
-    set UE_PATH=%UE_ENGINE_PATH%
-) ELSE (
-    REM Attempt to find Unreal Engine installation if UE_ENGINE_PATH is not set
-    REM This is a common default installation path, adjust as needed
-    set UE_PATH=C:\Program Files\Epic Games\UE_5.6
-    IF NOT EXIST "%UE_PATH%" (
-        set UE_PATH=D:\Program Files\Epic Games\UE_5.6
-    )
-    IF NOT EXIST "%UE_PATH%" (
-        echo Warning: UE_ENGINE_PATH environment variable not set and common installation paths not found.
-        echo Please set UE_ENGINE_PATH or modify build_plugin.bat with your Unreal Engine 5.6 path.
-        pause
-        exit /b 1
-    )
+set "PLUGIN_ROOT=%~dp0"
+set "PLUGIN_FILE=%PLUGIN_ROOT%MassUnitSystem.uplugin"
+set "OUTPUT_PATH=%~1"
+set "TARGET_PLATFORM=%~2"
+set "BUILD_CONFIG=%~3"
+
+if not defined OUTPUT_PATH set "OUTPUT_PATH=%PLUGIN_ROOT%Build\Package"
+if not defined TARGET_PLATFORM set "TARGET_PLATFORM=Win64"
+if not defined BUILD_CONFIG set "BUILD_CONFIG=Development"
+
+set "ENGINE_ROOT=%UE_ENGINE_PATH%"
+if not defined ENGINE_ROOT set "ENGINE_ROOT=%UE_PATH%"
+
+if not defined ENGINE_ROOT (
+    echo Error: Set UE_ENGINE_PATH to your Unreal Engine root.
+    echo Example: set UE_ENGINE_PATH=D:\Unreal Engine\UE_5.7
+    exit /b 1
 )
 
-REM Set the plugin path
-set PLUGIN_PATH=%~dp0
+set "UAT=%ENGINE_ROOT%\Engine\Build\BatchFiles\RunUAT.bat"
+if not exist "%UAT%" set "UAT=%ENGINE_ROOT%\Build\BatchFiles\RunUAT.bat"
 
-REM Set the build configuration
-set BUILD_CONFIG=Development
-
-REM Set the target platform
-set TARGET_PLATFORM=Win64
-
-REM Build the plugin
-echo Building plugin at %PLUGIN_PATH% for %TARGET_PLATFORM% in %BUILD_CONFIG% configuration...
-"%UE_PATH%\Engine\Build\BatchFiles\RunUAT.bat" BuildPlugin -Plugin="%PLUGIN_PATH%\MassUnitSystem.uplugin" -Package="%PLUGIN_PATH%\Binaries" -TargetPlatforms=%TARGET_PLATFORM% -Configuration=%BUILD_CONFIG%
-
-REM Check if build was successful
-if %ERRORLEVEL% NEQ 0 (
-    echo Build failed with error code %ERRORLEVEL%
-    pause
-    exit /b %ERRORLEVEL%
-) else (
-    echo Build completed successfully!
-    pause
+if not exist "%UAT%" (
+    echo Error: RunUAT.bat was not found below "%ENGINE_ROOT%".
+    exit /b 1
 )
+
+if not exist "%PLUGIN_FILE%" (
+    echo Error: Plugin descriptor was not found at "%PLUGIN_FILE%".
+    exit /b 1
+)
+
+echo Building "%PLUGIN_FILE%"
+echo Target: %TARGET_PLATFORM% %BUILD_CONFIG%
+echo Package: "%OUTPUT_PATH%"
+
+call "%UAT%" BuildPlugin -Plugin="%PLUGIN_FILE%" -Package="%OUTPUT_PATH%" -TargetPlatforms=%TARGET_PLATFORM% -Configuration=%BUILD_CONFIG%
+set "BUILD_RESULT=%ERRORLEVEL%"
+
+if not "%BUILD_RESULT%"=="0" (
+    echo Build failed with exit code %BUILD_RESULT%.
+    exit /b %BUILD_RESULT%
+)
+
+echo Build completed successfully: "%OUTPUT_PATH%"
+exit /b 0

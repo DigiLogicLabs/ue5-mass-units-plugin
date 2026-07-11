@@ -1,308 +1,244 @@
 // Copyright Digi Logic Labs LLC. All Rights Reserved.
 
 #include "Navigation/MassUnitNavigationSystem.h"
-#if WITH_MASSENTITY
-#include "MassEntitySubsystem.h"
+
+#include "Config/MassUnitSystemSettings.h"
+#include "Core/MassUnitSystemRuntime.h"
 #include "Entity/MassUnitFragments.h"
-#include "MassUnitCommonFragments.h"
-#include "MassEntityView.h"
-#include "MassEntityTypes.h"
-#endif
+#include "MassEntityManager.h"
+#include "MassEntitySubsystem.h"
 #include "NavigationSystem.h"
-#include "NavigationPath.h"
-#include "NavMesh/RecastNavMesh.h"
-#include "Engine/World.h"
 
-UMassUnitNavigationSystem::UMassUnitNavigationSystem()
-    : World(nullptr)
-    , EntitySubsystem(nullptr)
-    , NavigationSystem(nullptr)
-    , NavigationData(nullptr)
+void UMassUnitNavigationSystem::Initialize(UWorld* InWorld, UMassEntitySubsystem* InEntitySubsystem)
 {
-}
-
-UMassUnitNavigationSystem::~UMassUnitNavigationSystem()
-{
-}
-
-void UMassUnitNavigationSystem::Initialize(UWorld* InWorld, UMassUnitEntitySubsystem* InEntitySubsystem)
-{
-    World = InWorld;
-    EntitySubsystem = InEntitySubsystem;
-    
-    // Get navigation system
-    if (World)
-    {
-        NavigationSystem = FNavigationSystem::GetCurrent<UNavigationSystemV1>(World);
-        if (NavigationSystem)
-        {
-            // Get navigation data
-            NavigationData = NavigationSystem->GetDefaultNavDataInstance();
-        }
-    }
-    
-    UE_LOG(LogTemp, Log, TEXT("MassUnitNavigationSystem: Initialized with nav system %p, nav data %p"), 
-        NavigationSystem, NavigationData);
+	World = InWorld;
+	EntitySubsystem = InEntitySubsystem;
+	const UMassUnitSystemSettings* Settings = GetDefault<UMassUnitSystemSettings>();
+	MaxPathRequestsPerFrame = Settings ? FMath::Max(1, Settings->MaxPathRequestsPerFrame) : 100;
+	UpdateNavigationData(InWorld);
 }
 
 void UMassUnitNavigationSystem::Deinitialize()
 {
-    // Clear path requests
-    PathRequestQueue.Empty();
-    EntityPathMap.Empty();
-    
-    // Clear references
-    NavigationData = nullptr;
-    NavigationSystem = nullptr;
-    EntitySubsystem = nullptr;
-    World = nullptr;
-    
-    UE_LOG(LogTemp, Log, TEXT("MassUnitNavigationSystem: Deinitialized"));
+	TArray<uint32> PendingPathIds;
+	PendingPathOwners.GenerateKeyArray(PendingPathIds);
+	PendingPathOwners.Reset();
+	if (NavigationSystem)
+	{
+		for (const uint32 PathId : PendingPathIds)
+		{
+			NavigationSystem->AbortAsyncFindPathRequest(PathId);
+		}
+	}
+	PathRequestQueue.Reset();
+	NavigationData = nullptr;
+	NavigationSystem = nullptr;
+	EntitySubsystem = nullptr;
+	World = nullptr;
 }
 
 void UMassUnitNavigationSystem::UpdateNavigationData(UWorld* InWorld)
 {
-    if (!InWorld)
-    {
-        return;
-    }
-    NavigationSystem = FNavigationSystem::GetCurrent<UNavigationSystemV1>(InWorld);
-    if (NavigationSystem)
-    {
-        NavigationData = NavigationSystem->GetDefaultNavDataInstance();
-    }
-    UE_LOG(LogTemp, Log, TEXT("MassUnitNavigationSystem: Updated navigation data"));
+	World = InWorld;
+	NavigationSystem = InWorld ? FNavigationSystem::GetCurrent<UNavigationSystemV1>(InWorld) : nullptr;
+	NavigationData = NavigationSystem ? NavigationSystem->GetDefaultNavDataInstance(FNavigationSystem::DontCreate) : nullptr;
 }
 
-bool UMassUnitNavigationSystem::RequestPathInternal(FMassUnitEntityHandle Entity, const FVector& Destination)
+bool UMassUnitNavigationSystem::RequestPath(FMassUnitHandle UnitHandle, const FVector& Destination, float AcceptanceRadius)
 {
-    // Skip if not initialized
-    if (!EntitySubsystem || !NavigationSystem || !NavigationData)
-    {
-        return false;
-    }
-    
-    // Get entity manager
-    FMassUnitEntityManagerFallback& EntityManager = *EntitySubsystem->GetMutableUnitEntityManager();
-    
-    // Skip if entity is invalid
-    if (!Entity.IsValid() || !EntityManager.IsEntityValid(Entity))
-    {
-        return false;
-    }
-    
-    // Get entity view
-    FMassUnitEntityView EntityView(EntityManager, Entity);
-    
-    // Skip if missing required fragments
-    if (!EntityView.HasFragmentData<FMassUnitTransformFragment>() ||
-        !EntityView.HasFragmentData<FMassUnitNavigationFragment>())
-    {
-        return false;
-    }
-    
-    // Get fragments
-    const FMassUnitTransformFragment& TransformFragment = EntityView.GetFragmentData<FMassUnitTransformFragment>();
-    FMassUnitNavigationFragment& NavigationFragment = EntityView.GetFragmentData<FMassUnitNavigationFragment>();
-    
-    // Get current location
-    FVector CurrentLocation = TransformFragment.GetTransform().GetLocation();
-    
-    // Create path request
-    FPathRequest Request;
-    Request.Entity = Entity;
-    Request.Destination = Destination;
-    Request.ResultPath = MakeShared<FNavPathSharedPtr>();
-    
-    // Set up delegate
-    Request.Delegate.BindUObject(this, &UMassUnitNavigationSystem::HandlePathRequestComplete);
-    
-    // Add to queue
-    PathRequestQueue.Add(Request);
-    
-    // Update navigation fragment
-    NavigationFragment.DestinationLocation = Destination;
-    NavigationFragment.bPathRequested = true;
-    NavigationFragment.bPathValid = false;
-    
-    UE_LOG(LogTemp, Verbose, TEXT("MassUnitNavigationSystem: Requested path for entity %s from %s to %s"), 
-        *Entity.ToString(), *CurrentLocation.ToString(), *Destination.ToString());
-    
-    return true;
+	return RequestPathInternal(UnitHandle.EntityHandle, Destination, AcceptanceRadius);
+}
+
+bool UMassUnitNavigationSystem::RequestPathInternal(FMassUnitEntityHandle Entity, const FVector& Destination, float AcceptanceRadius)
+{
+	if (!IsEntityValid(Entity))
+	{
+		return false;
+	}
+
+	FMassEntityManager& EntityManager = EntitySubsystem->GetMutableEntityManager();
+	FMassUnitNavigationFragment* Navigation = EntityManager.GetFragmentDataPtr<FMassUnitNavigationFragment>(Entity.ToMassEntityHandle());
+	if (!Navigation)
+	{
+		return false;
+	}
+
+	Navigation->DestinationLocation = Destination;
+	Navigation->AcceptanceRadius = FMath::Max(1.0f, AcceptanceRadius);
+	Navigation->PathPoints.Reset();
+	Navigation->CurrentPathIndex = INDEX_NONE;
+	Navigation->bPathRequested = true;
+	Navigation->bPathValid = false;
+
+	PathRequestQueue.RemoveAll([Entity](const FPathRequest& Existing) { return Existing.Entity == Entity; });
+	TArray<uint32> SupersededPathIds;
+	for (const TPair<uint32, FMassUnitEntityHandle>& Pair : PendingPathOwners)
+	{
+		if (Pair.Value == Entity)
+		{
+			SupersededPathIds.Add(Pair.Key);
+		}
+	}
+	for (const uint32 PathId : SupersededPathIds)
+	{
+		PendingPathOwners.Remove(PathId);
+		if (NavigationSystem)
+		{
+			NavigationSystem->AbortAsyncFindPathRequest(PathId);
+		}
+	}
+	PathRequestQueue.Add({Entity, Destination, Navigation->AcceptanceRadius});
+	return true;
 }
 
 void UMassUnitNavigationSystem::ProcessPathRequests()
 {
-    // Skip if not initialized
-    if (!NavigationSystem || !NavigationData || PathRequestQueue.Num() == 0)
-    {
-        return;
-    }
-    
-    // Process a batch of path requests
-    ProcessPathRequestBatch(FMath::Min(PathRequestQueue.Num(), MaxPathRequestsPerFrame));
-}
+	if (PathRequestQueue.IsEmpty())
+	{
+		return;
+	}
+	if (!NavigationSystem || !NavigationData)
+	{
+		UpdateNavigationData(World);
+	}
 
-void UMassUnitNavigationSystem::ProcessPathRequestBatch(int32 BatchSize)
-{
-    // Skip if no requests
-    if (PathRequestQueue.Num() == 0 || BatchSize <= 0)
-    {
-        return;
-    }
-    
-    // Process requests in batches
-    int32 BatchesProcessed = 0;
-    int32 RequestsProcessed = 0;
-    
-    while (PathRequestQueue.Num() > 0 && RequestsProcessed < BatchSize)
-    {
-        // Get batch size
-        int32 CurrentBatchSize = FMath::Min(PathRequestQueue.Num(), PathRequestBatchSize);
-        
-        // Process batch
-        for (int32 i = 0; i < CurrentBatchSize; ++i)
-        {
-            // Get request
-            FPathRequest& Request = PathRequestQueue[0];
-            
-            // Get entity manager
-            FMassUnitEntityManagerFallback& EntityManager = *EntitySubsystem->GetMutableUnitEntityManager();
-            
-            // Skip if entity is invalid
-            if (!Request.Entity.IsValid() || !EntityManager.IsEntityValid(Request.Entity))
-            {
-                PathRequestQueue.RemoveAt(0);
-                continue;
-            }
-            
-            // Get entity view
-            FMassUnitEntityView EntityView(EntityManager, Request.Entity);
-            
-            // Skip if missing required fragments
-            if (!EntityView.HasFragmentData<FMassUnitTransformFragment>())
-            {
-                PathRequestQueue.RemoveAt(0);
-                continue;
-            }
-            
-            // Get fragments
-            const FMassUnitTransformFragment& TransformFragment = EntityView.GetFragmentData<FMassUnitTransformFragment>();
-            
-            // Get current location
-            FVector CurrentLocation = TransformFragment.GetTransform().GetLocation();
-            
-            // Create path finding query
-            FPathFindingQuery Query(nullptr, *NavigationData, CurrentLocation, Request.Destination);
-            
-            // Add entity to map
-            EntityPathMap.Add(Request.Entity, Request.ResultPath);
+	const UMassUnitSystemSettings* Settings = GetDefault<UMassUnitSystemSettings>();
+	const bool bUseDirectFallback = !Settings || Settings->bFallbackToDirectPath;
+	const int32 RequestCount = FMath::Min(MaxPathRequestsPerFrame, PathRequestQueue.Num());
+	for (int32 Index = 0; Index < RequestCount; ++Index)
+	{
+		const FPathRequest Request = PathRequestQueue[0];
+		PathRequestQueue.RemoveAt(0, 1, EAllowShrinking::No);
+		if (!IsEntityValid(Request.Entity))
+		{
+			continue;
+		}
 
-            // Find path async
-            NavigationSystem->FindPathAsync(FNavAgentProperties::DefaultProperties, Query, Request.Delegate);
-            
-            // Remove request from queue
-            PathRequestQueue.RemoveAt(0);
-            
-            // Increment counter
-            RequestsProcessed++;
-        }
-        
-        // Increment batch counter
-        BatchesProcessed++;
-    }
-    
-    UE_LOG(LogTemp, Verbose, TEXT("MassUnitNavigationSystem: Processed %d path requests in %d batches"), 
-        RequestsProcessed, BatchesProcessed);
+		if (!NavigationSystem || !NavigationData)
+		{
+			if (bUseDirectFallback)
+			{
+				SetDirectPath(Request.Entity, Request.Destination, Request.AcceptanceRadius);
+			}
+			else
+			{
+				MarkPathFailed(Request.Entity);
+			}
+			continue;
+		}
+
+		const FMassUnitTransformFragment* Transform = EntitySubsystem->GetEntityManager().GetFragmentDataPtr<FMassUnitTransformFragment>(Request.Entity.ToMassEntityHandle());
+		if (!Transform)
+		{
+			MarkPathFailed(Request.Entity);
+			continue;
+		}
+		FPathFindingQuery Query(nullptr, *NavigationData, Transform->GetTransform().GetLocation(), Request.Destination);
+		const FNavPathQueryDelegate Delegate = FNavPathQueryDelegate::CreateUObject(this, &UMassUnitNavigationSystem::HandlePathRequestComplete);
+		const uint32 PathId = NavigationSystem->FindPathAsync(FNavAgentProperties::DefaultProperties, MoveTemp(Query), Delegate);
+		if (PathId != INVALID_NAVQUERYID)
+		{
+			PendingPathOwners.Add(PathId, Request.Entity);
+		}
+		else if (bUseDirectFallback)
+		{
+			SetDirectPath(Request.Entity, Request.Destination, Request.AcceptanceRadius);
+		}
+		else
+		{
+			MarkPathFailed(Request.Entity);
+		}
+	}
 }
 
 void UMassUnitNavigationSystem::HandlePathRequestComplete(uint32 PathId, ENavigationQueryResult::Type Result, FNavPathSharedPtr Path)
 {
-    // Get path owner
-    FMassUnitEntityHandle Entity = FMassUnitEntityHandle();
-    
-    // Find entity for this path
-    // Note: FindPathAsync might return a different shared pointer instance but with same path data
-    // In our case, we stored the ResultPath shared pointer in the map.
-    for (auto It = EntityPathMap.CreateIterator(); It; ++It)
-    {
-        // Check if this path ID matches or if we can identify it.
-        // For simplicity, we'll use the first one if we can't match by PathId.
-        // In a production system, we'd use the PathId to map back.
-        Entity = It.Key();
-        break;
-    }
-    
-    // Skip if no entity found
-    if (!Entity.IsValid())
-    {
-        UE_LOG(LogTemp, Warning, TEXT("MassUnitNavigationSystem: Path owner not found for path %d"), PathId);
-        return;
-    }
+	FMassUnitEntityHandle Entity;
+	if (!PendingPathOwners.RemoveAndCopyValue(PathId, Entity) || !IsEntityValid(Entity))
+	{
+		return;
+	}
+	if (Result == ENavigationQueryResult::Success && Path.IsValid())
+	{
+		UpdateEntityWithPath(Entity, Path);
+		return;
+	}
 
-    // Remove entity from map first
-    EntityPathMap.Remove(Entity);
-
-    // Skip if path is invalid
-    if (Result != ENavigationQueryResult::Success || !Path.IsValid())
-    {
-        UE_LOG(LogTemp, Warning, TEXT("MassUnitNavigationSystem: Path request failed with result %d"), Result);
-        return;
-    }
-    
-    // Update entity with path
-    UpdateEntityWithPath(Entity, Path);
+	FMassUnitNavigationFragment* Navigation = EntitySubsystem->GetMutableEntityManager().GetFragmentDataPtr<FMassUnitNavigationFragment>(Entity.ToMassEntityHandle());
+	const UMassUnitSystemSettings* Settings = GetDefault<UMassUnitSystemSettings>();
+	if (Navigation && (!Settings || Settings->bFallbackToDirectPath))
+	{
+		SetDirectPath(Entity, Navigation->DestinationLocation, Navigation->AcceptanceRadius);
+	}
+	else if (Navigation)
+	{
+		MarkPathFailed(Entity);
+	}
 }
 
 void UMassUnitNavigationSystem::UpdateEntityWithPath(FMassUnitEntityHandle Entity, const FNavPathSharedPtr& Path)
 {
-    // Skip if not initialized
-    if (!EntitySubsystem)
-    {
-        return;
-    }
-    
-    // Get entity manager
-    FMassUnitEntityManagerFallback& EntityManager = *EntitySubsystem->GetMutableUnitEntityManager();
-    
-    // Skip if entity is invalid
-    if (!Entity.IsValid() || !EntityManager.IsEntityValid(Entity))
-    {
-        return;
-    }
-    
-    // Get entity view
-    FMassUnitEntityView EntityView(EntityManager, Entity);
-    
-    // Skip if missing required fragments
-    if (!EntityView.HasFragmentData<FMassUnitNavigationFragment>())
-    {
-        return;
-    }
-    
-    // Get navigation fragment
-    FMassUnitNavigationFragment& NavigationFragment = EntityView.GetFragmentData<FMassUnitNavigationFragment>();
-    
-    // Update path
-    EntityPathMap.Add(Entity, Path);
-    
-    // Update navigation fragment
-    NavigationFragment.bPathRequested = false;
-    NavigationFragment.bPathValid = true;
-    NavigationFragment.PathPoints.Empty();
-    
-    // Copy path points
-    if (Path.IsValid() && Path->GetPathPoints().Num() > 0)
-    {
-        for (const FNavPathPoint& Point : Path->GetPathPoints())
-        {
-            NavigationFragment.PathPoints.Add(Point.Location);
-        }
-        
-        // Set current path index
-        NavigationFragment.CurrentPathIndex = 0;
-    }
-    
-    UE_LOG(LogTemp, Verbose, TEXT("MassUnitNavigationSystem: Updated entity %s with path (%d points)"), 
-        *Entity.ToString(), NavigationFragment.PathPoints.Num());
+	if (!IsEntityValid(Entity) || !Path.IsValid())
+	{
+		return;
+	}
+	FMassUnitNavigationFragment* Navigation = EntitySubsystem->GetMutableEntityManager().GetFragmentDataPtr<FMassUnitNavigationFragment>(Entity.ToMassEntityHandle());
+	if (!Navigation)
+	{
+		return;
+	}
+
+	Navigation->PathPoints.Reset();
+	for (const FNavPathPoint& Point : Path->GetPathPoints())
+	{
+		Navigation->PathPoints.Add(Point.Location);
+	}
+	if (Navigation->PathPoints.IsEmpty() || !Navigation->PathPoints.Last().Equals(Navigation->DestinationLocation, Navigation->AcceptanceRadius))
+	{
+		Navigation->PathPoints.Add(Navigation->DestinationLocation);
+	}
+	Navigation->CurrentPathIndex = Navigation->PathPoints.IsEmpty() ? INDEX_NONE : 0;
+	Navigation->bPathRequested = false;
+	Navigation->bPathValid = !Navigation->PathPoints.IsEmpty();
+}
+
+bool UMassUnitNavigationSystem::SetDirectPath(FMassUnitEntityHandle Entity, const FVector& Destination, float AcceptanceRadius)
+{
+	if (!IsEntityValid(Entity))
+	{
+		return false;
+	}
+	FMassUnitNavigationFragment* Navigation = EntitySubsystem->GetMutableEntityManager().GetFragmentDataPtr<FMassUnitNavigationFragment>(Entity.ToMassEntityHandle());
+	if (!Navigation)
+	{
+		return false;
+	}
+	Navigation->DestinationLocation = Destination;
+	Navigation->AcceptanceRadius = FMath::Max(1.0f, AcceptanceRadius);
+	Navigation->PathPoints = {Destination};
+	Navigation->CurrentPathIndex = 0;
+	Navigation->bPathRequested = false;
+	Navigation->bPathValid = true;
+	return true;
+}
+
+void UMassUnitNavigationSystem::MarkPathFailed(FMassUnitEntityHandle Entity)
+{
+	if (!IsEntityValid(Entity))
+	{
+		return;
+	}
+	if (FMassUnitNavigationFragment* Navigation = EntitySubsystem->GetMutableEntityManager().GetFragmentDataPtr<FMassUnitNavigationFragment>(Entity.ToMassEntityHandle()))
+	{
+		Navigation->PathPoints.Reset();
+		Navigation->CurrentPathIndex = INDEX_NONE;
+		Navigation->bPathRequested = false;
+		Navigation->bPathValid = false;
+	}
+}
+
+bool UMassUnitNavigationSystem::IsEntityValid(FMassUnitEntityHandle Entity) const
+{
+	return EntitySubsystem && Entity.IsValid()
+		&& EntitySubsystem->GetEntityManager().IsEntityValid(Entity.ToMassEntityHandle());
 }

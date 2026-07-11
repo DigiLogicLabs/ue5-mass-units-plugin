@@ -1,24 +1,49 @@
 # Architecture
 
-## Overview
-The plugin is structured to maximize performance and modularity. It consists of several key components:
+## Ownership
 
-1. **Niagara Simulation**: Handles the position, movement, and basic behaviors of units.
-2. **Vertex Animation System**: Manages efficient animations for units using texture-based animations.
-3. **Pathing Module**: Provides group-based pathing and swarm behaviors, leveraging Unreal Engine’s navigation system.
-4. **GAS Integration**: Connects units directly to Unreal Engine's **Gameplay Ability System** for advanced AI and interactions.
-5. **Interaction Handler**: Manages the transition to skeletal meshes and ragdolls when units are interacted with.
-6. **Optimization Tools**: Implements LODs, instanced rendering, and culling to ensure high performance.
+Each gameplay world owns Unreal's `UMassEntitySubsystem`. `UMassUnitSubsystem` declares that subsystem as a dependency and creates the plugin services for the same world. All unit handles ultimately identify entities in that native world-owned `FMassEntityManager`.
 
-## Component Interaction
-- The Niagara system simulates unit positions and states.
-- The pathing module updates group paths and influences Niagara simulations.
-- When interaction occurs, the interaction handler swaps Niagara particles for skeletal actors.
-- GAS is used selectively for units that require complex behaviors, with optimizations to limit overhead.
+There is no fallback entity database and no shared static fragment storage. Every unit has independent fragment data in a Mass archetype.
 
-## Design Decisions
-- **Niagara for Simulation**: Chosen for its GPU efficiency and ability to handle large numbers of entities.
-- **Vertex Animations**: Selected to reduce CPU load compared to traditional skeletal animations.
-- **Group Pathing**: Implemented to minimize pathfinding calculations by treating groups as single entities.
-- **Pooling for Skeletal Units**: Used to cap the number of active skeletal meshes and prevent performance spikes.
-- **Direct GAS Integration**: Leverages Unreal Engine's built-in Gameplay Ability System for flexibility and standardization.
+```text
+UWorld
+  UMassEntitySubsystem
+    FMassEntityManager
+      native unit archetype/entities/fragments
+  UMassUnitSubsystem
+    entity facade
+    navigation + formations
+    visual representations
+    optional GAS + Behavior Tree bridges
+```
+
+## Simulation
+
+Unit templates seed a common archetype. Movement, combat, and visibility are `UMassProcessor` classes registered with Mass phases. Processors iterate matching chunks and update fragments; gameplay code uses stable handles instead of actor pointers.
+
+The manager keeps lightweight type/team indexes for convenient queries. Destroying an entity removes it from these indexes and invalidates the handle serial.
+
+## Navigation and formations
+
+Navigation batches requests, keeps a `PathId -> EntityHandle` map, and writes completed paths into the requesting entity's navigation fragment. Missing nav data can produce a direct path when configured.
+
+The formation service owns formation membership and deterministic slot assignment. It writes formation targets into native entity fragments; the movement processor consumes those destinations.
+
+## Representation
+
+Simulation state remains in Mass. Representation is selected separately:
+
+- HISM is the zero-asset default.
+- A configured Niagara system receives packed arrays.
+- A bounded pool supplies individual skeletal mesh components for close/high-detail units.
+
+This separation avoids one actor per simulated unit. The vertex-animation registry maps animation gameplay tags to compact indices, while project-specific Niagara/material assets decode those indices.
+
+## Selective UObject integrations
+
+GAS and Behavior Trees are not appropriate for every lightweight unit. Their bridges allocate nothing per entity until a caller opts a unit in. GAS keeps ASC ownership outside the plugin; Behavior Trees create transient components only for selected handles.
+
+## Shutdown
+
+The native Mass subsystem owns entity-manager lifetime and tears down all entities with the world. Plugin services clear their indexes/components without dereferencing the Mass manager after it has begun shutdown. This ordering is covered by the native lifecycle automation test.

@@ -1,5 +1,7 @@
 # UE5 Large-Scale Unit System Plugin Implementation Roadmap
 
+> Archived pre-implementation roadmap. Completed/current work is recorded in `docs/changelog.md`; remaining production boundaries are in `OutOfTheBoxReadinessReport.md`.
+
 ## Overview
 
 This roadmap outlines the development process for implementing the UE5 Large-Scale Unit System Plugin. The implementation is divided into phases, with each phase building upon the previous one to create a complete, high-performance solution for managing thousands of units in Unreal Engine 5.6 with GASCompanion integration.

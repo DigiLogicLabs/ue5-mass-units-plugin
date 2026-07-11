@@ -1,17 +1,17 @@
 {
 	"FileVersion": 3,
-	"Version": 1,
-	"VersionName": "1.0",
+	"Version": 2,
+	"VersionName": "1.1.0",
 	"FriendlyName": "Mass Unit System",
-	"EngineVersion": "5.6.0",
-	"Description": "High-performance large-scale unit system with GAS integration",
+	"Description": "Native Mass Entity units with movement, formations, navigation, scalable rendering, and optional GAS integration",
 	"Category": "Gameplay",
 	"CreatedBy": "Digi Logic Labs LLC",
-	"CreatedByURL": "https://yourcompany.com",
-	"DocsURL": "",
+	"CreatedByURL": "https://github.com/DigiLogicLabs",
+	"DocsURL": "https://github.com/DigiLogicLabs/ue5-mass-units-plugin#readme",
 	"MarketplaceURL": "",
-	"SupportURL": "",
+	"SupportURL": "https://github.com/DigiLogicLabs/ue5-mass-units-plugin/issues",
 	"CanContainContent": true,
+	"EnabledByDefault": true,
 	"IsBetaVersion": false,
 	"IsExperimentalVersion": false,
 	"Installed": false,
@@ -29,20 +29,15 @@
 	],
 	"Plugins": [
 		{
+			"Name": "MassGameplay",
+			"Enabled": true
+		},
+		{
 			"Name": "Niagara",
 			"Enabled": true
 		},
 		{
 			"Name": "GameplayAbilities",
-			"Enabled": true
-		},
-		{
-			"Name": "GASCompanion",
-			"Enabled": true,
-			"Optional": true
-		},
-		{
-			"Name": "MassAI",
 			"Enabled": true
 		}
 	]

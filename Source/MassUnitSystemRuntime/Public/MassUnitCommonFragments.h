@@ -3,57 +3,29 @@
 #pragma once
 
 #include "CoreMinimal.h"
-
-// Include MassEntity types
 #include "MassEntityTypes.h"
-#include "MassCommonTypes.h"
-
-// Include the engine's MassCommonFragments.h to get access to the transform fragment
-#include "MassCommonFragments.h"
-
-/**
- * This file includes common Mass fragments used throughout the plugin.
- * It serves as a bridge to the actual MassEntity module's fragments.
- */
-
 #include "MassUnitCommonFragments.generated.h"
 
-
-/**
- * Velocity fragment for Mass units
- */
 USTRUCT()
-struct MASSUNITSYSTEMRUNTIME_API FMassUnitVelocityFragment
+struct MASSUNITSYSTEMRUNTIME_API FMassUnitVelocityFragment : public FMassFragment
 {
-    GENERATED_BODY()
+	GENERATED_BODY()
 
-    UPROPERTY(EditAnywhere, Category = "Mass Unit")
-    FVector Value = FVector::ZeroVector;
-
-    UPROPERTY(EditAnywhere, Category = "Mass Unit")
-    float MaxSpeed = 600.0f;
+	FVector Value = FVector::ZeroVector;
 };
 
-/**
- * Force fragment for Mass units
- */
 USTRUCT()
-struct MASSUNITSYSTEMRUNTIME_API FMassUnitForceFragment
+struct MASSUNITSYSTEMRUNTIME_API FMassUnitForceFragment : public FMassFragment
 {
-    GENERATED_BODY()
+	GENERATED_BODY()
 
-    UPROPERTY(EditAnywhere, Category = "Mass Unit")
-    FVector Value = FVector::ZeroVector;
+	FVector Value = FVector::ZeroVector;
 };
 
-/**
- * LookAt fragment for Mass units
- */
 USTRUCT()
-struct MASSUNITSYSTEMRUNTIME_API FMassUnitLookAtFragment
+struct MASSUNITSYSTEMRUNTIME_API FMassUnitLookAtFragment : public FMassFragment
 {
-    GENERATED_BODY()
+	GENERATED_BODY()
 
-    UPROPERTY(EditAnywhere, Category = "Mass Unit")
-    FVector Direction = FVector::ForwardVector;
+	FVector Direction = FVector::ForwardVector;
 };

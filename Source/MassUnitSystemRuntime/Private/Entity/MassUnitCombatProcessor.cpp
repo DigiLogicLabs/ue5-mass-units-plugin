@@ -1,77 +1,98 @@
 // Copyright Digi Logic Labs LLC. All Rights Reserved.
 
 #include "Entity/MassUnitCombatProcessor.h"
-#include "MassUnitCommonFragments.h"
-#include "Entity/MassUnitFragments.h"
-#include "MassEntityView.h"
 
+#include "Core/MassUnitGameplayTags.h"
+#include "Entity/MassUnitFragments.h"
+#include "MassEntityManager.h"
+#include "MassExecutionContext.h"
 
 UMassUnitCombatProcessor::UMassUnitCombatProcessor()
+	: EntityQuery(*this)
 {
-    // ExecutionOrder.ExecuteAfter.Add(UE::Mass::ProcessorGroupNames::Movement); // Deprecated
-    // ExecutionOrder.ExecuteBefore.Add(UE::Mass::ProcessorGroupNames::LOD); // Deprecated
+	bAutoRegisterWithProcessingPhases = true;
+	ExecutionFlags = static_cast<int32>(EProcessorExecutionFlags::AllNetModes);
+	ExecutionOrder.ExecuteInGroup = FName(TEXT("MassUnitSystem.Combat"));
+	ExecutionOrder.ExecuteAfter.Add(FName(TEXT("MassUnitSystem.Movement")));
+}
+
+void UMassUnitCombatProcessor::ConfigureQueries(const TSharedRef<FMassEntityManager>& EntityManager)
+{
+	EntityQuery.AddRequirement<FMassUnitTransformFragment>(EMassFragmentAccess::ReadOnly);
+	EntityQuery.AddRequirement<FMassUnitStateFragment>(EMassFragmentAccess::ReadWrite);
+	EntityQuery.AddRequirement<FMassUnitTargetFragment>(EMassFragmentAccess::ReadWrite);
+	EntityQuery.AddRequirement<FMassUnitTeamFragment>(EMassFragmentAccess::ReadOnly);
+	EntityQuery.AddRequirement<FMassUnitVisualFragment>(EMassFragmentAccess::ReadWrite);
 }
 
 void UMassUnitCombatProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
 {
-    // Stub implementation for Unreal override
-}
+	const float DeltaTime = FMath::Min(Context.GetDeltaTimeSeconds(), 0.1f);
+	EntityQuery.ForEachEntityChunk(Context, [this, &EntityManager, DeltaTime](FMassExecutionContext& ChunkContext)
+	{
+		const TConstArrayView<FMassUnitTransformFragment> Transforms = ChunkContext.GetFragmentView<FMassUnitTransformFragment>();
+		TArrayView<FMassUnitStateFragment> States = ChunkContext.GetMutableFragmentView<FMassUnitStateFragment>();
+		TArrayView<FMassUnitTargetFragment> Targets = ChunkContext.GetMutableFragmentView<FMassUnitTargetFragment>();
+		const TConstArrayView<FMassUnitTeamFragment> Teams = ChunkContext.GetFragmentView<FMassUnitTeamFragment>();
+		TArrayView<FMassUnitVisualFragment> Visuals = ChunkContext.GetMutableFragmentView<FMassUnitVisualFragment>();
 
-void UMassUnitCombatProcessor::SetupUnitQueries()
-{
-    EntityQuery.AddRequirement<FMassUnitTransformFragment>((int)EMassFragmentAccess::ReadOnly);
-    EntityQuery.AddRequirement<FMassUnitStateFragment>((int)EMassFragmentAccess::ReadWrite);
-    EntityQuery.AddRequirement<FMassUnitTargetFragment>((int)EMassFragmentAccess::ReadWrite);
-    EntityQuery.AddRequirement<FMassUnitAbilityFragment>((int)EMassFragmentAccess::ReadWrite);
-    EntityQuery.AddRequirement<FMassUnitTeamFragment>((int)EMassFragmentAccess::ReadOnly);
-}
+		for (FMassExecutionContext::FEntityIterator It = ChunkContext.CreateEntityIterator(); It; ++It)
+		{
+			FMassUnitStateFragment& State = States[It];
+			FMassUnitTargetFragment& Target = Targets[It];
+			FMassUnitVisualFragment& Visual = Visuals[It];
+			State.AttackCooldownRemaining = FMath::Max(0.0f, State.AttackCooldownRemaining - DeltaTime);
 
-void UMassUnitCombatProcessor::ExecuteFallback(FMassUnitEntityManagerFallback& EntityManager, FMassUnitExecutionContext& Context)
-{
-    // ...existing fallback logic...
-    // Function body ends here
-}
-void UMassUnitCombatProcessor::ProcessCombatInteraction(FMassUnitEntityManagerFallback& EntityManager, FMassUnitEntityHandle Attacker, FMassUnitEntityHandle Target)
-{
-    FMassUnitEntityView AttackerEntityView(EntityManager, Attacker);
-    FMassUnitEntityView TargetEntityView(EntityManager, Target);
-    
-    // Check if both entities have required fragments
-    if (!AttackerEntityView.HasFragmentData<FMassUnitAbilityFragment>() || 
-        !TargetEntityView.HasFragmentData<FMassUnitAbilityFragment>() ||
-        !AttackerEntityView.HasFragmentData<FMassUnitStateFragment>() || 
-        !TargetEntityView.HasFragmentData<FMassUnitStateFragment>())
-    {
-        return;
-    }
-    
-    // Get fragments
-    const FMassUnitAbilityFragment& AttackerAbilityFragment = AttackerEntityView.GetFragmentData<FMassUnitAbilityFragment>();
-    FMassUnitAbilityFragment& TargetAbilityFragment = TargetEntityView.GetFragmentData<FMassUnitAbilityFragment>();
-    const FMassUnitStateFragment& AttackerStateFragment = AttackerEntityView.GetFragmentData<FMassUnitStateFragment>();
-    FMassUnitStateFragment& TargetStateFragment = TargetEntityView.GetFragmentData<FMassUnitStateFragment>();
-    
-    // Skip if target is already dead
-    if (TargetStateFragment.CurrentState == EMassUnitState::Dead)
-    {
-        return;
-    }
-    
-    // Calculate damage
-    float AttackerDamage = AttackerStateFragment.UnitLevel * 5.0f * DamageMultiplier; // Fallback: use level-based damage only
-    
-    // Apply damage to target health
-    // Fallback: no health attribute, just mark as dead if damage exceeds threshold
-    if (AttackerDamage > 0.0f) {
-        TargetStateFragment.CurrentState = EMassUnitState::Dead;
-        TargetStateFragment.StateTime = 0.0f;
-        // Apply stun effect with small chance
-        if (FMath::RandRange(0.0f, 1.0f) < 0.1f) {
-            TargetStateFragment.StateTime = 0.0f;
-        }
-        UE_LOG(LogTemp, Log, TEXT("Combat: Entity %s attacked entity %s for %.1f damage"), 
-            *Attacker.ToString(), *Target.ToString(), AttackerDamage);
-    }
-    // In a real implementation, this would trigger gameplay abilities and effects through GAS
-    // For now, we're just doing a simple damage calculation
+			if (State.CurrentState == EMassUnitState::Dead || !Target.TargetEntity.IsValid())
+			{
+				continue;
+			}
+
+			const FMassEntityHandle TargetHandle = Target.TargetEntity.ToMassEntityHandle();
+			if (!EntityManager.IsEntityValid(TargetHandle))
+			{
+				Target.Clear();
+				continue;
+			}
+
+			FMassUnitStateFragment* TargetState = EntityManager.GetFragmentDataPtr<FMassUnitStateFragment>(TargetHandle);
+			const FMassUnitTransformFragment* TargetTransform = EntityManager.GetFragmentDataPtr<FMassUnitTransformFragment>(TargetHandle);
+			const FMassUnitTeamFragment* TargetTeam = EntityManager.GetFragmentDataPtr<FMassUnitTeamFragment>(TargetHandle);
+			if (!TargetState || !TargetTransform || !TargetTeam || TargetState->CurrentState == EMassUnitState::Dead || TargetTeam->TeamID == Teams[It].TeamID)
+			{
+				if (TargetState && TargetState->CurrentState == EMassUnitState::Dead)
+				{
+					Target.Clear();
+				}
+				continue;
+			}
+
+			Target.TargetLocation = TargetTransform->GetTransform().GetLocation();
+			const float DistanceSquared = FVector::DistSquared2D(Transforms[It].GetTransform().GetLocation(), Target.TargetLocation);
+			if (DistanceSquared > FMath::Square(State.AttackRange))
+			{
+				continue;
+			}
+
+			if (State.CurrentState != EMassUnitState::Attacking)
+			{
+				State.CurrentState = EMassUnitState::Attacking;
+				State.StateTime = 0.0f;
+			}
+			Visual.CurrentAnimation = UE::MassUnitSystem::Tags::AnimationAttack();
+
+			if (State.AttackCooldownRemaining <= 0.0f)
+			{
+				const float Damage = State.BaseDamage * FMath::Max(1, State.UnitLevel) * DamageMultiplier;
+				TargetState->Health = FMath::Max(0.0f, TargetState->Health - Damage);
+				State.AttackCooldownRemaining = State.AttackCooldown;
+				if (TargetState->Health <= 0.0f)
+				{
+					TargetState->CurrentState = EMassUnitState::Dead;
+					TargetState->StateTime = 0.0f;
+					Target.Clear();
+				}
+			}
+		}
+	});
 }

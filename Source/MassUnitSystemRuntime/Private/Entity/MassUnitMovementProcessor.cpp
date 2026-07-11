@@ -1,192 +1,155 @@
 // Copyright Digi Logic Labs LLC. All Rights Reserved.
 
 #include "Entity/MassUnitMovementProcessor.h"
-#include "MassUnitCommonFragments.h"
-#include "Entity/MassUnitFragments.h"
 
+#include "Core/MassUnitGameplayTags.h"
+#include "Entity/MassUnitFragments.h"
+#include "MassEntityManager.h"
+#include "MassExecutionContext.h"
+#include "MassUnitCommonFragments.h"
 
 UMassUnitMovementProcessor::UMassUnitMovementProcessor()
+	: EntityQuery(*this)
 {
-    // ExecutionOrder can be set to custom values if needed
+	bAutoRegisterWithProcessingPhases = true;
+	ExecutionFlags = static_cast<int32>(EProcessorExecutionFlags::AllNetModes);
+	ExecutionOrder.ExecuteInGroup = FName(TEXT("MassUnitSystem.Movement"));
 }
 
-void UMassUnitMovementProcessor::SetupUnitQueries()
+void UMassUnitMovementProcessor::ConfigureQueries(const TSharedRef<FMassEntityManager>& EntityManager)
 {
-    EntityQuery.AddRequirement<FMassUnitTransformFragment>((int)EMassFragmentAccess::ReadWrite);
-    EntityQuery.AddRequirement<FMassUnitVelocityFragment>((int)EMassFragmentAccess::ReadWrite);
-    EntityQuery.AddRequirement<FMassUnitForceFragment>((int)EMassFragmentAccess::ReadWrite);
-    EntityQuery.AddRequirement<FMassUnitLookAtFragment>((int)EMassFragmentAccess::ReadWrite);
-    EntityQuery.AddRequirement<FMassUnitStateFragment>((int)EMassFragmentAccess::ReadWrite);
-    EntityQuery.AddRequirement<FMassUnitTargetFragment>((int)EMassFragmentAccess::ReadOnly);
-    EntityQuery.AddRequirement<FMassUnitFormationFragment>((int)EMassFragmentAccess::ReadOnly);
-    
-    // Optional fragments
-    EntityQuery.AddTagRequirement<int>((int)EMassFragmentPresence::Optional);
-}
-
-void UMassUnitMovementProcessor::ExecuteFallback(FMassUnitEntityManagerFallback& EntityManager, FMassUnitExecutionContext& Context)
-{
-    // Get delta time
-    const float DeltaTime = Context.GetDeltaTimeSeconds();
-    
-    // Process entities
-    EntityQuery.ForEachEntityChunk(EntityManager, Context, [this, &EntityManager, DeltaTime](FMassUnitExecutionContext& Context)
-    {
-        const int32 NumEntities = Context.GetNumEntities();
-    const TArrayView<FMassUnitTransformFragment> TransformList = Context.GetMutableFragmentView<FMassUnitTransformFragment>();
-    const TArrayView<FMassUnitVelocityFragment> VelocityList = Context.GetMutableFragmentView<FMassUnitVelocityFragment>();
-    const TArrayView<FMassUnitForceFragment> ForceList = Context.GetMutableFragmentView<FMassUnitForceFragment>();
-    const TArrayView<FMassUnitLookAtFragment> LookAtList = Context.GetMutableFragmentView<FMassUnitLookAtFragment>();
-        const TArrayView<FMassUnitStateFragment> StateList = Context.GetMutableFragmentView<FMassUnitStateFragment>();
-        const TConstArrayView<FMassUnitTargetFragment> TargetList = Context.GetFragmentView<FMassUnitTargetFragment>();
-        const TConstArrayView<FMassUnitFormationFragment> FormationList = Context.GetFragmentView<FMassUnitFormationFragment>();
-        
-        for (int32 EntityIndex = 0; EntityIndex < NumEntities; ++EntityIndex)
-        {
-            FMassUnitTransformFragment& TransformFragment = TransformList[EntityIndex];
-            FMassUnitVelocityFragment& VelocityFragment = VelocityList[EntityIndex];
-            FMassUnitForceFragment& ForceFragment = ForceList[EntityIndex];
-            FMassUnitLookAtFragment& LookAtFragment = LookAtList[EntityIndex];
-            FMassUnitStateFragment& StateFragment = StateList[EntityIndex];
-            const FMassUnitTargetFragment& TargetFragment = TargetList[EntityIndex];
-            const FMassUnitFormationFragment& FormationFragment = FormationList[EntityIndex];
-            
-            // Update state time
-            StateFragment.StateTime += DeltaTime;
-            
-            // Skip if unit is dead or stunned
-            if (StateFragment.CurrentState == EMassUnitState::Dead || 
-                StateFragment.CurrentState == EMassUnitState::Stunned)
-            {
-                VelocityFragment.Value = FVector::ZeroVector;
-                ForceFragment.Value = FVector::ZeroVector;
-                continue;
-            }
-            
-            // Calculate movement vector
-            FVector MovementVector = CalculateMovementVector(EntityManager, Context.GetEntity(EntityIndex), DeltaTime);
-            
-            // Apply movement
-            if (!MovementVector.IsZero())
-            {
-                // Set state to moving if not attacking or interacting
-                if (StateFragment.CurrentState != EMassUnitState::Attacking && 
-                    StateFragment.CurrentState != EMassUnitState::Interacting)
-                {
-                    StateFragment.CurrentState = EMassUnitState::Moving;
-                }
-                
-                // Apply force
-                ForceFragment.Value = MovementVector * Acceleration;
-                
-                // Clamp velocity
-                if (VelocityFragment.Value.SizeSquared() > FMath::Square(MaxSpeed))
-                {
-                    VelocityFragment.Value = VelocityFragment.Value.GetSafeNormal() * MaxSpeed;
-                }
-                
-                // Update look at direction
-                LookAtFragment.Direction = VelocityFragment.Value.GetSafeNormal();
-            }
-            else
-            {
-                // Apply deceleration
-                if (!VelocityFragment.Value.IsZero())
-                {
-                    FVector DecelDir = -VelocityFragment.Value.GetSafeNormal();
-                    float DecelAmount = Deceleration * DeltaTime;
-                    float CurrentSpeed = VelocityFragment.Value.Size();
-                    
-                    if (CurrentSpeed <= DecelAmount)
-                    {
-                        VelocityFragment.Value = FVector::ZeroVector;
-                        ForceFragment.Value = FVector::ZeroVector;
-                        
-                        // Set state to idle if moving
-                        if (StateFragment.CurrentState == EMassUnitState::Moving)
-                        {
-                            StateFragment.CurrentState = EMassUnitState::Idle;
-                            StateFragment.StateTime = 0.0f;
-                        }
-                    }
-                    else
-                    {
-                        ForceFragment.Value = DecelDir * Deceleration;
-                    }
-                }
-                else if (StateFragment.CurrentState == EMassUnitState::Moving)
-                {
-                    // Set state to idle if moving but no velocity
-                    StateFragment.CurrentState = EMassUnitState::Idle;
-                    StateFragment.StateTime = 0.0f;
-                }
-            }
-        }
-    });
+	EntityQuery.AddRequirement<FMassUnitTransformFragment>(EMassFragmentAccess::ReadWrite);
+	EntityQuery.AddRequirement<FMassUnitVelocityFragment>(EMassFragmentAccess::ReadWrite);
+	EntityQuery.AddRequirement<FMassUnitForceFragment>(EMassFragmentAccess::ReadWrite);
+	EntityQuery.AddRequirement<FMassUnitLookAtFragment>(EMassFragmentAccess::ReadWrite);
+	EntityQuery.AddRequirement<FMassUnitStateFragment>(EMassFragmentAccess::ReadWrite);
+	EntityQuery.AddRequirement<FMassUnitTargetFragment>(EMassFragmentAccess::ReadWrite);
+	EntityQuery.AddRequirement<FMassUnitNavigationFragment>(EMassFragmentAccess::ReadWrite);
+	EntityQuery.AddRequirement<FMassUnitVisualFragment>(EMassFragmentAccess::ReadWrite);
 }
 
 void UMassUnitMovementProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
 {
-    // Unreal override for compatibility. Redirect to fallback if needed.
-}
+	const float DeltaTime = FMath::Min(Context.GetDeltaTimeSeconds(), 0.1f);
+	EntityQuery.ForEachEntityChunk(Context, [this, &EntityManager, DeltaTime](FMassExecutionContext& ChunkContext)
+	{
+		TArrayView<FMassUnitTransformFragment> Transforms = ChunkContext.GetMutableFragmentView<FMassUnitTransformFragment>();
+		TArrayView<FMassUnitVelocityFragment> Velocities = ChunkContext.GetMutableFragmentView<FMassUnitVelocityFragment>();
+		TArrayView<FMassUnitForceFragment> Forces = ChunkContext.GetMutableFragmentView<FMassUnitForceFragment>();
+		TArrayView<FMassUnitLookAtFragment> LookAts = ChunkContext.GetMutableFragmentView<FMassUnitLookAtFragment>();
+		TArrayView<FMassUnitStateFragment> States = ChunkContext.GetMutableFragmentView<FMassUnitStateFragment>();
+		TArrayView<FMassUnitTargetFragment> Targets = ChunkContext.GetMutableFragmentView<FMassUnitTargetFragment>();
+		TArrayView<FMassUnitNavigationFragment> Navigation = ChunkContext.GetMutableFragmentView<FMassUnitNavigationFragment>();
+		TArrayView<FMassUnitVisualFragment> Visuals = ChunkContext.GetMutableFragmentView<FMassUnitVisualFragment>();
 
-FVector UMassUnitMovementProcessor::CalculateMovementVector(FMassUnitEntityManagerFallback& EntityManager, FMassUnitEntityHandle Entity, float DeltaTime)
-{
-    FVector MovementVector = FVector::ZeroVector;
-    
-    // Get entity view
-    FMassUnitEntityView EntityView(EntityManager, Entity);
-    
-    // Get fragments
-    const FMassUnitTargetFragment& TargetFragment = EntityView.GetFragmentData<FMassUnitTargetFragment>();
-    const FMassUnitFormationFragment& FormationFragment = EntityView.GetFragmentData<FMassUnitFormationFragment>();
-    const FMassUnitTransformFragment& TransformFragment = EntityView.GetFragmentData<FMassUnitTransformFragment>();
-    
-    // Priority 1: Formation movement
-    if (FormationFragment.IsInFormation())
-    {
-        // Calculate formation position (in a real implementation, this would come from the formation system)
-        FVector FormationPosition = TransformFragment.GetTransform().GetLocation() + FormationFragment.FormationOffset;
-        FVector ToFormationPosition = FormationPosition - TransformFragment.GetTransform().GetLocation();
-        
-        // If not at formation position, move towards it
-        if (ToFormationPosition.SizeSquared() > 1.0f)
-        {
-            MovementVector = ToFormationPosition.GetSafeNormal();
-            return MovementVector;
-        }
-    }
-    
-    // Priority 2: Target movement
-    if (TargetFragment.HasTarget())
-    {
-        if (TargetFragment.TargetEntity.IsValid())
-        {
-            // Move towards target entity (in a real implementation, this would get the target entity's position)
-            // For now, just use the target location
-            FVector ToTarget = TargetFragment.TargetLocation - TransformFragment.GetTransform().GetLocation();
-            
-            // If not at target, move towards it
-            if (ToTarget.SizeSquared() > 100.0f) // Stop within 10 units of target
-            {
-                MovementVector = ToTarget.GetSafeNormal();
-                return MovementVector;
-            }
-        }
-        else if (!TargetFragment.TargetLocation.IsZero())
-        {
-            // Move towards target location
-            FVector ToTarget = TargetFragment.TargetLocation - TransformFragment.GetTransform().GetLocation();
-            
-            // If not at target, move towards it
-            if (ToTarget.SizeSquared() > 100.0f) // Stop within 10 units of target
-            {
-                MovementVector = ToTarget.GetSafeNormal();
-                return MovementVector;
-            }
-        }
-    }
-    
-    // No movement needed
-    return MovementVector;
+		for (FMassExecutionContext::FEntityIterator It = ChunkContext.CreateEntityIterator(); It; ++It)
+		{
+			FMassUnitTransformFragment& Transform = Transforms[It];
+			FMassUnitVelocityFragment& Velocity = Velocities[It];
+			FMassUnitForceFragment& Force = Forces[It];
+			FMassUnitLookAtFragment& LookAt = LookAts[It];
+			FMassUnitStateFragment& State = States[It];
+			FMassUnitTargetFragment& Target = Targets[It];
+			FMassUnitNavigationFragment& Nav = Navigation[It];
+			FMassUnitVisualFragment& Visual = Visuals[It];
+			State.StateTime += DeltaTime;
+
+			if (State.CurrentState == EMassUnitState::Dead || State.CurrentState == EMassUnitState::Stunned)
+			{
+				Velocity.Value = FVector::ZeroVector;
+				Force.Value = FVector::ZeroVector;
+				Visual.CurrentAnimation = State.CurrentState == EMassUnitState::Dead
+					? UE::MassUnitSystem::Tags::AnimationDeath()
+					: UE::MassUnitSystem::Tags::AnimationStun();
+				continue;
+			}
+
+			const FVector CurrentLocation = Transform.GetTransform().GetLocation();
+			FVector Destination = FVector::ZeroVector;
+			float StopDistance = Nav.AcceptanceRadius;
+			bool bHasDestination = false;
+
+			if (Target.TargetEntity.IsValid())
+			{
+				const FMassEntityHandle TargetHandle = Target.TargetEntity.ToMassEntityHandle();
+				if (EntityManager.IsEntityValid(TargetHandle))
+				{
+					if (const FMassUnitTransformFragment* TargetTransform = EntityManager.GetFragmentDataPtr<FMassUnitTransformFragment>(TargetHandle))
+					{
+						Destination = TargetTransform->GetTransform().GetLocation();
+						Target.TargetLocation = Destination;
+						StopDistance = FMath::Max(Nav.AcceptanceRadius, State.AttackRange * 0.9f);
+						bHasDestination = true;
+					}
+				}
+				else
+				{
+					Target.Clear();
+				}
+			}
+
+			if (!bHasDestination && Nav.bPathValid)
+			{
+				while (Nav.PathPoints.IsValidIndex(Nav.CurrentPathIndex)
+					&& FVector::DistSquared(CurrentLocation, Nav.PathPoints[Nav.CurrentPathIndex]) <= FMath::Square(Nav.AcceptanceRadius))
+				{
+					++Nav.CurrentPathIndex;
+				}
+				if (Nav.PathPoints.IsValidIndex(Nav.CurrentPathIndex))
+				{
+					Destination = Nav.PathPoints[Nav.CurrentPathIndex];
+					bHasDestination = true;
+				}
+				else
+				{
+					Nav.bPathValid = false;
+				}
+			}
+
+			if (!bHasDestination && Target.HasTarget())
+			{
+				Destination = Target.TargetLocation;
+				bHasDestination = true;
+			}
+
+			FVector DesiredVelocity = FVector::ZeroVector;
+			if (bHasDestination)
+			{
+				const FVector ToDestination = Destination - CurrentLocation;
+				if (ToDestination.SizeSquared2D() > FMath::Square(StopDistance))
+				{
+					DesiredVelocity = ToDestination.GetSafeNormal2D() * State.MoveSpeed;
+				}
+			}
+
+			const float InterpSpeed = DesiredVelocity.IsNearlyZero() ? Deceleration : Acceleration;
+			const FVector PreviousVelocity = Velocity.Value;
+			Velocity.Value = FMath::VInterpConstantTo(Velocity.Value, DesiredVelocity, DeltaTime, InterpSpeed);
+			Force.Value = DeltaTime > UE_SMALL_NUMBER ? (Velocity.Value - PreviousVelocity) / DeltaTime : FVector::ZeroVector;
+
+			if (!Velocity.Value.IsNearlyZero())
+			{
+				FTransform& MutableTransform = Transform.GetMutableTransform();
+				MutableTransform.AddToTranslation(Velocity.Value * DeltaTime);
+				const FRotator DesiredRotation = Velocity.Value.Rotation();
+				MutableTransform.SetRotation(FMath::RInterpConstantTo(MutableTransform.Rotator(), DesiredRotation, DeltaTime, TurningRate).Quaternion());
+				LookAt.Direction = Velocity.Value.GetSafeNormal();
+				if (State.CurrentState != EMassUnitState::Attacking && State.CurrentState != EMassUnitState::Interacting)
+				{
+					if (State.CurrentState != EMassUnitState::Moving)
+					{
+						State.StateTime = 0.0f;
+					}
+					State.CurrentState = EMassUnitState::Moving;
+					Visual.CurrentAnimation = UE::MassUnitSystem::Tags::AnimationWalk();
+				}
+			}
+			else if (State.CurrentState == EMassUnitState::Moving)
+			{
+				State.CurrentState = EMassUnitState::Idle;
+				State.StateTime = 0.0f;
+				Visual.CurrentAnimation = UE::MassUnitSystem::Tags::AnimationIdle();
+			}
+		}
+	});
 }

@@ -1,5 +1,7 @@
 # Product Requirements Document (PRD)
 
+> Archived pre-1.1 planning document. It does not describe the current API, dependencies, verified engine version, or performance guarantees. See the repository README and maintained `docs/` guides.
+
 ## Introduction
 This plugin provides a highly optimized solution for managing large-scale unit systems in Unreal Engine 5.6. It leverages the **Gameplay Ability System (GAS)** for AI behaviors and abilities, making it ideal for games with massive enemy swarms, such as roguelikes or strategy games.
 

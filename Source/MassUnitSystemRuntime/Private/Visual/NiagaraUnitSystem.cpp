@@ -1,337 +1,277 @@
 // Copyright Digi Logic Labs LLC. All Rights Reserved.
 
 #include "Visual/NiagaraUnitSystem.h"
-#include "MassEntitySubsystem.h"
-#include "Visual/VertexAnimationManager.h"
+
+#include "Components/HierarchicalInstancedStaticMeshComponent.h"
+#include "Config/MassUnitSystemSettings.h"
+#include "Core/MassUnitSystemRuntime.h"
+#include "Engine/StaticMesh.h"
+#include "Engine/World.h"
 #include "Entity/MassUnitFragments.h"
+#include "MassEntityManager.h"
+#include "MassEntitySubsystem.h"
 #include "MassUnitCommonFragments.h"
-#include "MassEntityView.h"
-#include "MassEntityTypes.h"
+#include "NiagaraComponent.h"
 #include "NiagaraDataInterfaceArrayFunctionLibrary.h"
 #include "NiagaraFunctionLibrary.h"
-#include "Engine/World.h"
-#include "Engine/Engine.h"
-#include "UObject/ConstructorHelpers.h"
+#include "NiagaraSystem.h"
+#include "Visual/VertexAnimationManager.h"
 
-UNiagaraUnitSystem::UNiagaraUnitSystem()
-    : World(nullptr)
-    , EntitySubsystem(nullptr)
-    , NiagaraSystemAsset(nullptr)
-    , NiagaraComponent(nullptr)
-    , VertexAnimationManager(nullptr)
-    , CurrentLODLevel(0)
-    , LastUpdateTime(0.0f)
+void UNiagaraUnitSystem::Initialize(UWorld* InWorld, UMassEntitySubsystem* InEntitySubsystem)
 {
-}
-
-UNiagaraUnitSystem::~UNiagaraUnitSystem()
-{
-}
-
-void UNiagaraUnitSystem::Initialize(UWorld* InWorld, UMassUnitEntitySubsystem* InEntitySubsystem)
-{
-    World = InWorld;
-    EntitySubsystem = InEntitySubsystem;
-    
-    // Create Niagara system
-    CreateNiagaraSystem();
-    
-    // Create vertex animation manager
-    VertexAnimationManager = NewObject<UVertexAnimationManager>(this);
-    if (VertexAnimationManager)
-    {
-        VertexAnimationManager->Initialize();
-    }
-    else
-    {
-        UE_LOG(LogTemp, Error, TEXT("NiagaraUnitSystem: Failed to create VertexAnimationManager"));
-    }
-    
-    UE_LOG(LogTemp, Log, TEXT("NiagaraUnitSystem: Initialized"));
+	World = InWorld;
+	EntitySubsystem = InEntitySubsystem;
+	const UMassUnitSystemSettings* Settings = GetDefault<UMassUnitSystemSettings>();
+	if (Settings)
+	{
+		MaxUnits = FMath::Max(1, Settings->MaxUnits);
+		UpdateFrequency = FMath::Max(0.0f, Settings->VisualUpdateInterval);
+		bEnableInstancedFallback = Settings->bEnableInstancedMeshFallback;
+		NiagaraSystemAsset = Settings->DefaultNiagaraSystem.LoadSynchronous();
+		FallbackStaticMesh = Settings->FallbackStaticMesh.LoadSynchronous();
+	}
+	if (!FallbackStaticMesh && bEnableInstancedFallback)
+	{
+		FallbackStaticMesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube"));
+	}
+	CreateNiagaraSystem();
+	VertexAnimationManager = NewObject<UVertexAnimationManager>(this);
+	VertexAnimationManager->Initialize();
 }
 
 void UNiagaraUnitSystem::Deinitialize()
 {
-    // Clean up Niagara component
-    if (NiagaraComponent)
-    {
-        NiagaraComponent->DestroyComponent();
-        NiagaraComponent = nullptr;
-    }
-    
-    // Clean up vertex animation manager
-    if (VertexAnimationManager)
-    {
-        VertexAnimationManager->Deinitialize();
-        VertexAnimationManager = nullptr;
-    }
-    
-    // Clean up references
-    NiagaraSystemAsset = nullptr;
-    EntitySubsystem = nullptr;
-    World = nullptr;
-    
-    UE_LOG(LogTemp, Log, TEXT("NiagaraUnitSystem: Deinitialized"));
+	if (NiagaraComponent)
+	{
+		NiagaraComponent->DestroyComponent();
+	}
+	for (const TPair<TObjectPtr<UStaticMesh>, TObjectPtr<UHierarchicalInstancedStaticMeshComponent>>& Pair : InstancedMeshComponents)
+	{
+		if (Pair.Value)
+		{
+			Pair.Value->DestroyComponent();
+		}
+	}
+	if (VertexAnimationManager)
+	{
+		VertexAnimationManager->Deinitialize();
+	}
+	InstancedMeshComponents.Reset();
+	VertexAnimationManager = nullptr;
+	NiagaraComponent = nullptr;
+	NiagaraSystemAsset = nullptr;
+	FallbackStaticMesh = nullptr;
+	EntitySubsystem = nullptr;
+	World = nullptr;
 }
 
 void UNiagaraUnitSystem::UpdateUnitVisualsByHandles(const TArray<FMassUnitHandle>& UnitHandles)
 {
-    // Convert FMassUnitHandles to FMassUnitEntityHandles
-    TArray<FMassUnitEntityHandle> Entities;
-    Entities.Reserve(UnitHandles.Num());
-    
-    for (const FMassUnitHandle& UnitHandle : UnitHandles)
-    {
-        Entities.Add(UnitHandle.EntityHandle);
-    }
-    
-    // Call the internal function
-    UpdateUnitVisuals(Entities);
+	TArray<FMassUnitEntityHandle> Entities;
+	Entities.Reserve(UnitHandles.Num());
+	for (const FMassUnitHandle& Handle : UnitHandles)
+	{
+		Entities.Add(Handle.EntityHandle);
+	}
+	UpdateUnitVisuals(Entities);
 }
 
 void UNiagaraUnitSystem::UpdateUnitVisuals(const TArray<FMassUnitEntityHandle>& Entities)
 {
-    // Skip if not initialized
-    if (!World || !EntitySubsystem || !NiagaraComponent)
-    {
-        return;
-    }
-    
-    // Check if it's time to update
-    float CurrentTime = World->GetTimeSeconds();
-    if (CurrentTime - LastUpdateTime < UpdateFrequency)
-    {
-        return;
-    }
-    
-    // Update unit data
-    UpdateUnitData(Entities);
-    
-    // Update last update time
-    LastUpdateTime = CurrentTime;
+	if (!World || !EntitySubsystem)
+	{
+		return;
+	}
+	const float CurrentTime = World->GetTimeSeconds();
+	if (CurrentTime - LastUpdateTime < UpdateFrequency)
+	{
+		return;
+	}
+	LastUpdateTime = CurrentTime;
+	if (NiagaraComponent)
+	{
+		UpdateNiagaraData(Entities);
+	}
+	else if (bEnableInstancedFallback)
+	{
+		UpdateInstancedMeshData(Entities);
+	}
 }
 
 void UNiagaraUnitSystem::SetLODLevel(int32 LODLevel)
 {
-    // Skip if not initialized
-    if (!NiagaraComponent)
-    {
-        return;
-    }
-    
-    // Skip if LOD level hasn't changed
-    if (CurrentLODLevel == LODLevel)
-    {
-        return;
-    }
-    
-    // Update LOD level
-    CurrentLODLevel = LODLevel;
-    
-    // Set LOD level parameter in Niagara
-    NiagaraComponent->SetIntParameter(FName("LODLevel"), CurrentLODLevel);
-    
-    UE_LOG(LogTemp, Log, TEXT("NiagaraUnitSystem: Set LOD level to %d"), CurrentLODLevel);
+	CurrentLODLevel = FMath::Max(0, LODLevel);
+	if (NiagaraComponent)
+	{
+		NiagaraComponent->SetIntParameter(TEXT("LODLevel"), CurrentLODLevel);
+	}
 }
 
 void UNiagaraUnitSystem::CreateNiagaraSystem()
 {
-    // Skip if already created
-    if (NiagaraComponent)
-    {
-        return;
-    }
-    
-    // Skip if no world
-    if (!World)
-    {
-        UE_LOG(LogTemp, Error, TEXT("NiagaraUnitSystem: Failed to create Niagara system - no world"));
-        return;
-    }
-    
-    // Load Niagara system asset
-    // In a real implementation, this would load from a path or be set in the editor
-    // For this example, we'll assume it's already loaded
-    // NiagaraSystemAsset = LoadObject<UNiagaraSystem>(nullptr, TEXT("/Game/MassUnitSystem/NS_UnitSystem"));
-    
-    // Load Niagara system asset from the plugin's content folder
-    static ConstructorHelpers::FObjectFinder<UNiagaraSystem> NiagaraSystemAssetFinder(TEXT("/MassUnitSystem/NS_UnitSystem"));
-    if (NiagaraSystemAssetFinder.Succeeded())
-    {
-        NiagaraSystemAsset = NiagaraSystemAssetFinder.Object;
-    }
-    else
-    {
-        UE_LOG(LogTemp, Error, TEXT("NiagaraUnitSystem: Failed to find default Niagara system asset at /MassUnitSystem/NS_UnitSystem"));
-    }
-    
-    // Skip if failed to load
-    if (!NiagaraSystemAsset)
-    {
-        UE_LOG(LogTemp, Error, TEXT("NiagaraUnitSystem: Failed to load Niagara system asset"));
-        return;
-    }
-    
-    // Create Niagara component
-    NiagaraComponent = UNiagaraFunctionLibrary::SpawnSystemAtLocation(
-        World,
-        NiagaraSystemAsset,
-        FVector::ZeroVector,
-        FRotator::ZeroRotator,
-        FVector::OneVector,
-        true,
-        true,
-        ENCPoolMethod::AutoRelease,
-        true
-    );
-    
-    // Skip if failed to create
-    if (!NiagaraComponent)
-    {
-        UE_LOG(LogTemp, Error, TEXT("NiagaraUnitSystem: Failed to create Niagara component"));
-        return;
-    }
-    
-    // Set initial parameters
-    NiagaraComponent->SetIntParameter(FName("MaxUnits"), MaxUnits);
-    NiagaraComponent->SetIntParameter(FName("LODLevel"), CurrentLODLevel);
-    
-    UE_LOG(LogTemp, Log, TEXT("NiagaraUnitSystem: Created Niagara system"));
+	if (!World || !NiagaraSystemAsset)
+	{
+		if (!NiagaraSystemAsset && bEnableInstancedFallback)
+		{
+			UE_LOG(LogMassUnitSystem, Log, TEXT("No default Niagara asset configured; using instanced static mesh rendering"));
+		}
+		return;
+	}
+	NiagaraComponent = UNiagaraFunctionLibrary::SpawnSystemAtLocation(
+		World,
+		NiagaraSystemAsset,
+		FVector::ZeroVector,
+		FRotator::ZeroRotator,
+		FVector::OneVector,
+		true,
+		false,
+		ENCPoolMethod::None,
+		true);
+	if (NiagaraComponent)
+	{
+		NiagaraComponent->SetIntParameter(TEXT("MaxUnits"), MaxUnits);
+		NiagaraComponent->SetIntParameter(TEXT("LODLevel"), CurrentLODLevel);
+	}
 }
 
-void UNiagaraUnitSystem::UpdateUnitData(const TArray<FMassUnitEntityHandle>& Entities)
+void UNiagaraUnitSystem::UpdateNiagaraData(const TArray<FMassUnitEntityHandle>& Entities)
 {
-    // Skip if not initialized
-    if (!EntitySubsystem || !NiagaraComponent)
-    {
-        return;
-    }
-    
-    // Get entity manager
-    FMassUnitEntityManagerFallback& EntityManager = *EntitySubsystem->GetMutableUnitEntityManager();
-    
-    // Prepare arrays for Niagara
-    TArray<FVector> Positions;
-    TArray<FVector> Velocities;
-    TArray<FVector> Scales;
-    TArray<FQuat> Rotations;
-    TArray<int32> TeamIDs;
-    TArray<FLinearColor> TeamColors;
-    TArray<int32> AnimationIndices;
-    TArray<float> AnimationTimes;
-    TArray<int32> LODLevels;
-    TArray<int32> VisibilityFlags;
-    
-    // Reserve space
-    int32 NumEntities = FMath::Min(Entities.Num(), MaxUnits);
-    Positions.Reserve(NumEntities);
-    Velocities.Reserve(NumEntities);
-    Scales.Reserve(NumEntities);
-    Rotations.Reserve(NumEntities);
-    TeamIDs.Reserve(NumEntities);
-    TeamColors.Reserve(NumEntities);
-    AnimationIndices.Reserve(NumEntities);
-    AnimationTimes.Reserve(NumEntities);
-    LODLevels.Reserve(NumEntities);
-    VisibilityFlags.Reserve(NumEntities);
-    
-    // Process entities
-    for (int32 i = 0; i < NumEntities; ++i)
-    {
-        FMassUnitEntityHandle Entity = Entities[i];
+	if (!NiagaraComponent || !EntitySubsystem)
+	{
+		return;
+	}
+	const FMassEntityManager& EntityManager = EntitySubsystem->GetEntityManager();
+	TArray<FVector> Positions;
+	TArray<FVector> Velocities;
+	TArray<FVector> Scales;
+	TArray<FQuat> Rotations;
+	TArray<FVector> TeamColors;
+	TArray<float> TeamIDs;
+	TArray<float> AnimationIndices;
+	TArray<float> AnimationTimes;
+	TArray<float> LODLevels;
+	TArray<float> VisibilityFlags;
+	const int32 Count = FMath::Min(MaxUnits, Entities.Num());
+	Positions.Reserve(Count);
+	Velocities.Reserve(Count);
+	Scales.Reserve(Count);
+	Rotations.Reserve(Count);
 
-        // Skip invalid entities
-        if (!Entity.IsValid() || !EntityManager.IsEntityValid(Entity))
-        {
-            continue;
-        }
+	for (int32 Index = 0; Index < Count; ++Index)
+	{
+		const FMassEntityHandle NativeHandle = Entities[Index].ToMassEntityHandle();
+		if (!EntityManager.IsEntityValid(NativeHandle))
+		{
+			continue;
+		}
+		const FMassUnitTransformFragment* Transform = EntityManager.GetFragmentDataPtr<FMassUnitTransformFragment>(NativeHandle);
+		const FMassUnitVelocityFragment* Velocity = EntityManager.GetFragmentDataPtr<FMassUnitVelocityFragment>(NativeHandle);
+		const FMassUnitVisualFragment* Visual = EntityManager.GetFragmentDataPtr<FMassUnitVisualFragment>(NativeHandle);
+		const FMassUnitTeamFragment* Team = EntityManager.GetFragmentDataPtr<FMassUnitTeamFragment>(NativeHandle);
+		const FMassUnitStateFragment* State = EntityManager.GetFragmentDataPtr<FMassUnitStateFragment>(NativeHandle);
+		if (!Transform || !Velocity || !Visual || !Team || !State || !Visual->bIsVisible || Visual->bUseSkeletalMesh)
+		{
+			continue;
+		}
 
-        // Get entity view
-        FMassUnitEntityView EntityView(EntityManager, Entity);
+		const FTransform& UnitTransform = Transform->GetTransform();
+		Positions.Add(UnitTransform.GetLocation());
+		Velocities.Add(Velocity->Value);
+		Scales.Add(UnitTransform.GetScale3D());
+		Rotations.Add(UnitTransform.GetRotation());
+		TeamColors.Add(FVector(Team->TeamColor.R, Team->TeamColor.G, Team->TeamColor.B));
+		TeamIDs.Add(static_cast<float>(Team->TeamID));
+		AnimationIndices.Add(static_cast<float>(State->CurrentState));
+		AnimationTimes.Add(State->StateTime);
+		LODLevels.Add(static_cast<float>(Visual->LODLevel));
+		VisibilityFlags.Add(1.0f);
+	}
 
-        // Skip if missing required fragments
-    if (!EntityView.HasFragmentData<FMassUnitTransformFragment>() ||
-            !EntityView.HasFragmentData<FMassUnitVelocityFragment>() ||
-            !EntityView.HasFragmentData<FMassUnitVisualFragment>() ||
-            !EntityView.HasFragmentData<FMassUnitTeamFragment>() ||
-            !EntityView.HasFragmentData<FMassUnitStateFragment>())
-        {
-            continue;
-        }
+	UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayVector(NiagaraComponent, TEXT("UnitPositions"), Positions);
+	UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayVector(NiagaraComponent, TEXT("UnitVelocities"), Velocities);
+	UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayVector(NiagaraComponent, TEXT("UnitScales"), Scales);
+	UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayQuat(NiagaraComponent, TEXT("UnitRotations"), Rotations);
+	UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayVector(NiagaraComponent, TEXT("UnitTeamColors"), TeamColors);
+	UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayFloat(NiagaraComponent, TEXT("UnitTeamIDs"), TeamIDs);
+	UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayFloat(NiagaraComponent, TEXT("UnitAnimationIndices"), AnimationIndices);
+	UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayFloat(NiagaraComponent, TEXT("UnitAnimationTimes"), AnimationTimes);
+	UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayFloat(NiagaraComponent, TEXT("UnitLODLevels"), LODLevels);
+	UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayFloat(NiagaraComponent, TEXT("UnitVisibilityFlags"), VisibilityFlags);
+	NiagaraComponent->SetIntParameter(TEXT("UnitCount"), Positions.Num());
+}
 
-        // Get fragments
-    const FMassUnitTransformFragment& TransformFragment = EntityView.GetFragmentData<FMassUnitTransformFragment>();
-        const FMassUnitVelocityFragment& VelocityFragment = EntityView.GetFragmentData<FMassUnitVelocityFragment>();
-        const FMassUnitVisualFragment& VisualFragment = EntityView.GetFragmentData<FMassUnitVisualFragment>();
-        const FMassUnitTeamFragment& TeamFragment = EntityView.GetFragmentData<FMassUnitTeamFragment>();
-        const FMassUnitStateFragment& StateFragment = EntityView.GetFragmentData<FMassUnitStateFragment>();
+void UNiagaraUnitSystem::UpdateInstancedMeshData(const TArray<FMassUnitEntityHandle>& Entities)
+{
+	if (!EntitySubsystem)
+	{
+		return;
+	}
+	const FMassEntityManager& EntityManager = EntitySubsystem->GetEntityManager();
+	TMap<UStaticMesh*, TArray<FTransform>> InstancesByMesh;
+	const int32 Count = FMath::Min(MaxUnits, Entities.Num());
+	for (int32 Index = 0; Index < Count; ++Index)
+	{
+		const FMassEntityHandle NativeHandle = Entities[Index].ToMassEntityHandle();
+		if (!EntityManager.IsEntityValid(NativeHandle))
+		{
+			continue;
+		}
+		const FMassUnitTransformFragment* Transform = EntityManager.GetFragmentDataPtr<FMassUnitTransformFragment>(NativeHandle);
+		const FMassUnitVisualFragment* Visual = EntityManager.GetFragmentDataPtr<FMassUnitVisualFragment>(NativeHandle);
+		if (!Transform || !Visual || !Visual->bIsVisible || Visual->bUseSkeletalMesh)
+		{
+			continue;
+		}
+		UStaticMesh* Mesh = Visual->StaticMesh ? Visual->StaticMesh.Get() : FallbackStaticMesh.Get();
+		if (Mesh)
+		{
+			InstancesByMesh.FindOrAdd(Mesh).Add(Transform->GetTransform());
+		}
+	}
 
-        // Skip if using skeletal mesh
-        if (VisualFragment.bUseSkeletalMesh)
-        {
-            continue;
-        }
-        
-        // Skip if not visible
-        if (!VisualFragment.bIsVisible)
-        {
-            continue;
-        }
-        
-        // Get transform
-        FTransform Transform = TransformFragment.GetTransform();
-        
-        // Add data to arrays
-        Positions.Add(Transform.GetLocation());
-        Velocities.Add(VelocityFragment.Value);
-        Scales.Add(Transform.GetScale3D());
-        Rotations.Add(Transform.GetRotation());
-        TeamIDs.Add(TeamFragment.TeamID);
-        TeamColors.Add(TeamFragment.TeamColor);
-        
-        // Convert animation tag to index
-        // In a real implementation, this would map from animation tag to index
-        int32 AnimationIndex = static_cast<int32>(StateFragment.CurrentState);
-        AnimationIndices.Add(AnimationIndex);
-        
-        // Add animation time
-        AnimationTimes.Add(StateFragment.StateTime);
-        
-        // Add LOD level
-        LODLevels.Add(VisualFragment.LODLevel);
-        
-        // Add visibility flag
-        VisibilityFlags.Add(VisualFragment.bIsVisible ? 1 : 0);
-    }
-    
-    // Set arrays in Niagara
-    UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayVector(NiagaraComponent, FName("UnitPositions"), Positions);
-    UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayVector(NiagaraComponent, FName("UnitVelocities"), Velocities);
-    UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayVector(NiagaraComponent, FName("UnitScales"), Scales);
-    UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayQuat(NiagaraComponent, FName("UnitRotations"), Rotations);
-    // Convert int arrays to float arrays for Niagara
-    TArray<float> TeamIDsFloat, AnimationIndicesFloat, LODLevelsFloat, VisibilityFlagsFloat;
-    TeamIDsFloat.Reserve(TeamIDs.Num());
-    for (int32 v : TeamIDs) TeamIDsFloat.Add((float)v);
-    AnimationIndicesFloat.Reserve(AnimationIndices.Num());
-    for (int32 v : AnimationIndices) AnimationIndicesFloat.Add((float)v);
-    LODLevelsFloat.Reserve(LODLevels.Num());
-    for (int32 v : LODLevels) LODLevelsFloat.Add((float)v);
-    VisibilityFlagsFloat.Reserve(VisibilityFlags.Num());
-    for (int32 v : VisibilityFlags) VisibilityFlagsFloat.Add((float)v);
-    UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayFloat(NiagaraComponent, FName("UnitTeamIDs"), TeamIDsFloat);
-    // Convert FLinearColor to FVector for Niagara
-    TArray<FVector> TeamColorsVector;
-    TeamColorsVector.Reserve(TeamColors.Num());
-    for (const FLinearColor& c : TeamColors) TeamColorsVector.Add(FVector(c.R, c.G, c.B));
-    UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayVector(NiagaraComponent, FName("UnitTeamColors"), TeamColorsVector);
-    UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayFloat(NiagaraComponent, FName("UnitAnimationIndices"), AnimationIndicesFloat);
-    UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayFloat(NiagaraComponent, FName("UnitAnimationTimes"), AnimationTimes);
-    UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayFloat(NiagaraComponent, FName("UnitLODLevels"), LODLevelsFloat);
-    UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayFloat(NiagaraComponent, FName("UnitVisibilityFlags"), VisibilityFlagsFloat);
-    
-    // Set unit count
-    NiagaraComponent->SetIntParameter(FName("UnitCount"), Positions.Num());
-    
-    UE_LOG(LogTemp, Verbose, TEXT("NiagaraUnitSystem: Updated %d units"), Positions.Num());
+	for (const TPair<TObjectPtr<UStaticMesh>, TObjectPtr<UHierarchicalInstancedStaticMeshComponent>>& Pair : InstancedMeshComponents)
+	{
+		if (Pair.Value)
+		{
+			Pair.Value->ClearInstances();
+			Pair.Value->SetVisibility(false);
+		}
+	}
+	for (const TPair<UStaticMesh*, TArray<FTransform>>& Pair : InstancesByMesh)
+	{
+		UHierarchicalInstancedStaticMeshComponent* Component = GetOrCreateInstancedMeshComponent(Pair.Key);
+		if (!Component)
+		{
+			continue;
+		}
+		Component->SetVisibility(true);
+		for (const FTransform& Transform : Pair.Value)
+		{
+			Component->AddInstance(Transform, true);
+		}
+	}
+}
+
+UHierarchicalInstancedStaticMeshComponent* UNiagaraUnitSystem::GetOrCreateInstancedMeshComponent(UStaticMesh* Mesh)
+{
+	if (!Mesh || !World)
+	{
+		return nullptr;
+	}
+	if (UHierarchicalInstancedStaticMeshComponent* Existing = InstancedMeshComponents.FindRef(Mesh))
+	{
+		return Existing;
+	}
+	UHierarchicalInstancedStaticMeshComponent* Component = NewObject<UHierarchicalInstancedStaticMeshComponent>(World);
+	if (!Component)
+	{
+		return nullptr;
+	}
+	Component->SetMobility(EComponentMobility::Movable);
+	Component->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	Component->SetGenerateOverlapEvents(false);
+	Component->SetStaticMesh(Mesh);
+	Component->RegisterComponentWithWorld(World);
+	InstancedMeshComponents.Add(Mesh, Component);
+	return Component;
 }

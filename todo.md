@@ -1,5 +1,7 @@
 # UE5 Large-Scale Unit System Plugin Development
 
+> Archived planning checklist. It is retained for history and is not the current release backlog.
+
 ## Research Phase
 - [x] Research Unreal Engine 5 large-scale unit systems
 - [x] Analyze Kingsmaker video for reference implementation

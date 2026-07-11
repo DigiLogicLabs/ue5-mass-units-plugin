@@ -3,16 +3,16 @@
 #include "MassUnitSystemEditor.h"
 #include "Modules/ModuleManager.h"
 
+DEFINE_LOG_CATEGORY_STATIC(LogMassUnitSystemEditor, Log, All);
+
 IMPLEMENT_MODULE(FMassUnitSystemEditorModule, MassUnitSystemEditor);
 
 void FMassUnitSystemEditorModule::StartupModule()
 {
-	// This code will execute after your module is loaded into memory
-	UE_LOG(LogTemp, Log, TEXT("MassUnitSystemEditor: Module started"));
+	UE_LOG(LogMassUnitSystemEditor, Verbose, TEXT("Mass Unit System editor module started"));
 }
 
 void FMassUnitSystemEditorModule::ShutdownModule()
 {
-	// This function may be called during shutdown to clean up your module
-	UE_LOG(LogTemp, Log, TEXT("MassUnitSystemEditor: Module shutdown"));
+	UE_LOG(LogMassUnitSystemEditor, Verbose, TEXT("Mass Unit System editor module shut down"));
 }

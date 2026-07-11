@@ -1,10 +1,20 @@
 # Changelog
 
-## Version 1.1.0
-- Updated the plugin to use direct integration with Unreal Engine's **Gameplay Ability System (GAS)**, removing the dependency on GASCompanion.
-- Adjusted documentation to reflect direct GAS usage.
-- Enhanced compatibility with projects already using GAS.
+## 1.1.0
 
-## Version 1.0.0
-- Initial release of the plugin.
-- Features include large-scale unit simulation, vertex animations, dynamic pathing, and more.
+- Replaced the shared static fallback entity store with native world-owned Mass entities and fragments.
+- Added stable Blueprint-compatible wrappers around native entity handles.
+- Implemented functional movement, combat, visibility, navigation, formation, and destruction paths.
+- Changed plugin bootstrap to a tickable world subsystem with a native Mass dependency.
+- Added an asset-free HISM renderer and made custom Niagara rendering optional/configurable.
+- Implemented bounded skeletal mesh pooling and truthful vertex-animation tag/index registration.
+- Reworked GAS as an opt-in bridge to externally owned ASCs; removed GASCompanion references/dependency.
+- Implemented an optional selective Behavior Tree/Blackboard bridge.
+- Removed public headers that shadowed Unreal Engine Mass headers.
+- Reduced module and plugin dependencies to the features actually used.
+- Added a native lifecycle automation test, safe world shutdown, portable build helpers, and current setup/API documentation.
+- Validated UAT packaging with UE 5.7.2 for Win64 Editor, Development, and Shipping targets.
+
+## 1.0.0
+
+- Initial repository version.

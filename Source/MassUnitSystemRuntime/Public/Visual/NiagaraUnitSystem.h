@@ -3,87 +3,71 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "NiagaraSystem.h"
-#include "NiagaraComponent.h"
 #include "Entity/MassUnitEntityManager.h"
-#include "Entity/MassEntityFallback.h"
 #include "NiagaraUnitSystem.generated.h"
+
+class UHierarchicalInstancedStaticMeshComponent;
+class UMassEntitySubsystem;
+class UNiagaraComponent;
+class UNiagaraSystem;
+class UStaticMesh;
 class UVertexAnimationManager;
 
-/**
- * Niagara-based system for rendering units in the Mass Unit System
- */
-UCLASS(BlueprintType, Blueprintable)
+/** GPU representation uploader with an asset-free instanced-mesh fallback. */
+UCLASS(BlueprintType)
 class MASSUNITSYSTEMRUNTIME_API UNiagaraUnitSystem : public UObject
 {
-    GENERATED_BODY()
+	GENERATED_BODY()
 
 public:
-    UNiagaraUnitSystem();
-    virtual ~UNiagaraUnitSystem();
+	void Initialize(UWorld* InWorld, UMassEntitySubsystem* InEntitySubsystem);
+	void Deinitialize();
+	void UpdateUnitVisuals(const TArray<FMassUnitEntityHandle>& Entities);
 
-    /** Initialize the Niagara unit system */
-    void Initialize(UWorld* InWorld, UMassUnitEntitySubsystem* InEntitySubsystem);
-    
-    /** Deinitialize the Niagara unit system */
-    void Deinitialize();
-    
-    /** Update unit visuals (internal, not exposed to Blueprint) */
-    void UpdateUnitVisuals(const TArray<FMassUnitEntityHandle>& Entities);
-    
-    /** Update unit visuals (Blueprint-friendly version) */
-    UFUNCTION(BlueprintCallable, Category = "Mass Unit System")
-    void UpdateUnitVisualsByHandles(const TArray<FMassUnitHandle>& UnitHandles);
-    
-    /** Set LOD level */
-    UFUNCTION(BlueprintCallable, Category = "Mass Unit System")
-    void SetLODLevel(int32 LODLevel);
-    
-    /** Get the Niagara component */
-    UFUNCTION(BlueprintCallable, Category = "Mass Unit System")
-    UNiagaraComponent* GetNiagaraComponent() const { return NiagaraComponent; }
-    
-    /** Get the vertex animation manager */
-    UVertexAnimationManager* GetVertexAnimationManager() const { return VertexAnimationManager; }
+	UFUNCTION(BlueprintCallable, Category = "Mass Unit System|Rendering")
+	void UpdateUnitVisualsByHandles(const TArray<FMassUnitHandle>& UnitHandles);
+
+	UFUNCTION(BlueprintCallable, Category = "Mass Unit System|Rendering")
+	void SetLODLevel(int32 LODLevel);
+
+	UFUNCTION(BlueprintPure, Category = "Mass Unit System|Rendering")
+	UNiagaraComponent* GetNiagaraComponent() const { return NiagaraComponent; }
+
+	UFUNCTION(BlueprintPure, Category = "Mass Unit System|Rendering")
+	bool IsUsingNiagara() const { return NiagaraComponent != nullptr; }
+
+	UVertexAnimationManager* GetVertexAnimationManager() const { return VertexAnimationManager; }
 
 private:
-    /** Reference to the world */
-    UPROPERTY(Transient)
-    UWorld* World;
-    
-    /** Reference to the Mass Entity Subsystem */
-    UPROPERTY(Transient)
-    UMassUnitEntitySubsystem* EntitySubsystem;
-    
-    /** Niagara system asset */
-    UPROPERTY(Transient)
-    UNiagaraSystem* NiagaraSystemAsset;
-    
-    /** Niagara component */
-    UPROPERTY(Transient)
-    UNiagaraComponent* NiagaraComponent;
-    
-    /** Vertex animation manager */
-    UPROPERTY(Transient)
-    UVertexAnimationManager* VertexAnimationManager;
-    
-    /** Current LOD level */
-    int32 CurrentLODLevel;
-    
-    /** Maximum number of units */
-    UPROPERTY(EditAnywhere, Category = "Niagara")
-    int32 MaxUnits = 10000;
-    
-    /** Update frequency */
-    UPROPERTY(EditAnywhere, Category = "Niagara")
-    float UpdateFrequency = 0.033f; // ~30 fps
-    
-    /** Last update time */
-    float LastUpdateTime;
-    
-    /** Create the Niagara system */
-    void CreateNiagaraSystem();
-    
-    /** Update unit data in Niagara */
-    void UpdateUnitData(const TArray<FMassUnitEntityHandle>& Entities);
+	UPROPERTY(Transient)
+	TObjectPtr<UWorld> World = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UMassEntitySubsystem> EntitySubsystem = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UNiagaraSystem> NiagaraSystemAsset = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UNiagaraComponent> NiagaraComponent = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UVertexAnimationManager> VertexAnimationManager = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UStaticMesh> FallbackStaticMesh = nullptr;
+
+	UPROPERTY(Transient)
+	TMap<TObjectPtr<UStaticMesh>, TObjectPtr<UHierarchicalInstancedStaticMeshComponent>> InstancedMeshComponents;
+
+	int32 CurrentLODLevel = 0;
+	int32 MaxUnits = 10000;
+	float UpdateFrequency = 0.033f;
+	float LastUpdateTime = -BIG_NUMBER;
+	bool bEnableInstancedFallback = true;
+
+	void CreateNiagaraSystem();
+	void UpdateNiagaraData(const TArray<FMassUnitEntityHandle>& Entities);
+	void UpdateInstancedMeshData(const TArray<FMassUnitEntityHandle>& Entities);
+	UHierarchicalInstancedStaticMeshComponent* GetOrCreateInstancedMeshComponent(UStaticMesh* Mesh);
 };

@@ -1,356 +1,250 @@
 // Copyright Digi Logic Labs LLC. All Rights Reserved.
 
 #include "Visual/UnitMeshPool.h"
-#include "MassEntitySubsystem.h"
-#include "Entity/MassUnitEntityManager.h"
-#include "Entity/MassUnitFragments.h"
-#include "Entity/UnitTemplate.h"
-#include "MassUnitCommonFragments.h"
-#include "MassEntityView.h"
+
 #include "Components/SkeletalMeshComponent.h"
 #include "Engine/World.h"
-#include "Animation/AnimInstance.h"
+#include "Entity/MassUnitFragments.h"
+#include "MassEntityManager.h"
+#include "MassEntitySubsystem.h"
 
-UUnitMeshPool::UUnitMeshPool()
-    : World(nullptr)
-    , EntitySubsystem(nullptr)
-    , MaxPoolSize(100)
+void UUnitMeshPool::Initialize(UWorld* InWorld, UMassEntitySubsystem* InEntitySubsystem, int32 PoolSize)
 {
-}
-
-UUnitMeshPool::~UUnitMeshPool()
-{
-}
-
-void UUnitMeshPool::Initialize(UWorld* InWorld, UMassUnitEntitySubsystem* InEntitySubsystem, int32 PoolSize)
-{
-    World = InWorld;
-    EntitySubsystem = InEntitySubsystem;
-    MaxPoolSize = FMath::Max(1, PoolSize);
-    
-    // Pre-create some mesh components
-    int32 PreCreateCount = FMath::Min(MaxPoolSize / 4, 25); // Pre-create 25% of pool size, max 25
-    for (int32 i = 0; i < PreCreateCount; ++i)
-    {
-        USkeletalMeshComponent* MeshComponent = this->CreateMeshComponent();
-        if (MeshComponent)
-        {
-            AvailableMeshes.Add(MeshComponent);
-        }
-    }
-    
-    UE_LOG(LogTemp, Log, TEXT("UnitMeshPool: Initialized with pool size %d, pre-created %d meshes"), 
-        MaxPoolSize, AvailableMeshes.Num());
+	World = InWorld;
+	EntitySubsystem = InEntitySubsystem;
+	MaxPoolSize = FMath::Max(0, PoolSize);
+	const int32 PreCreateCount = FMath::Min(MaxPoolSize, 25);
+	for (int32 Index = 0; Index < PreCreateCount; ++Index)
+	{
+		if (USkeletalMeshComponent* Component = CreateMeshComponent())
+		{
+			AvailableMeshes.Add(Component);
+		}
+	}
 }
 
 void UUnitMeshPool::Deinitialize()
 {
-    // Release all meshes
-    for (auto& Pair : EntityMeshMap)
-    {
-        USkeletalMeshComponent* Mesh = Pair.Value;
-        if (Mesh)
-        {
-            Mesh->DestroyComponent();
-        }
-    }
-    
-    // Clear maps
-    EntityMeshMap.Empty();
-    MeshEntityMap.Empty();
-    
-    // Destroy available meshes
-    for (USkeletalMeshComponent* Mesh : AvailableMeshes)
-    {
-        if (Mesh)
-        {
-            Mesh->DestroyComponent();
-        }
-    }
-    AvailableMeshes.Empty();
-    
-    // Clear references
-    EntitySubsystem = nullptr;
-    World = nullptr;
-    
-    UE_LOG(LogTemp, Log, TEXT("UnitMeshPool: Deinitialized"));
+	TSet<USkeletalMeshComponent*> Components;
+	for (const TPair<FMassUnitEntityHandle, TObjectPtr<USkeletalMeshComponent>>& Pair : EntityMeshMap)
+	{
+		Components.Add(Pair.Value);
+	}
+	for (USkeletalMeshComponent* Component : AvailableMeshes)
+	{
+		Components.Add(Component);
+	}
+	for (USkeletalMeshComponent* Component : Components)
+	{
+		if (Component)
+		{
+			Component->DestroyComponent();
+		}
+	}
+	AvailableMeshes.Reset();
+	EntityMeshMap.Reset();
+	MeshEntityMap.Reset();
+	EntitySubsystem = nullptr;
+	World = nullptr;
+}
+
+void UUnitMeshPool::UpdateUnitMeshes(const TArray<FMassUnitEntityHandle>& Entities)
+{
+	TArray<USkeletalMeshComponent*> MeshesToRelease;
+	for (const TPair<FMassUnitEntityHandle, TObjectPtr<USkeletalMeshComponent>>& Pair : EntityMeshMap)
+	{
+		if (!IsEntityValid(Pair.Key) || !Entities.Contains(Pair.Key))
+		{
+			MeshesToRelease.Add(Pair.Value);
+		}
+	}
+	for (USkeletalMeshComponent* Mesh : MeshesToRelease)
+	{
+		ReleaseMesh(Mesh);
+	}
+
+	if (!EntitySubsystem)
+	{
+		return;
+	}
+	FMassEntityManager& EntityManager = EntitySubsystem->GetMutableEntityManager();
+	for (const FMassUnitEntityHandle Entity : Entities)
+	{
+		if (!IsEntityValid(Entity))
+		{
+			continue;
+		}
+		FMassUnitVisualFragment* Visual = EntityManager.GetFragmentDataPtr<FMassUnitVisualFragment>(Entity.ToMassEntityHandle());
+		if (!Visual)
+		{
+			continue;
+		}
+		if (Visual->bUseSkeletalMesh && Visual->SkeletalMesh)
+		{
+			USkeletalMeshComponent* Mesh = GetMeshForUnitInternal(Entity);
+			if (Mesh)
+			{
+				UpdateMeshFromEntity(Mesh, Entity);
+			}
+			else
+			{
+				Visual->bUseSkeletalMesh = false;
+			}
+		}
+		else if (USkeletalMeshComponent* Existing = EntityMeshMap.FindRef(Entity))
+		{
+			ReleaseMesh(Existing);
+		}
+	}
+}
+
+USkeletalMeshComponent* UUnitMeshPool::GetMeshForUnit(FMassUnitHandle UnitHandle)
+{
+	return GetMeshForUnitInternal(UnitHandle.EntityHandle);
 }
 
 USkeletalMeshComponent* UUnitMeshPool::GetMeshForUnitInternal(FMassUnitEntityHandle Entity)
 {
-    // Check if entity already has a mesh
-    if (USkeletalMeshComponent** MeshPtr = EntityMeshMap.Find(Entity))
-    {
-        return *MeshPtr;
-    }
-    
-    // Check if we've reached the pool size limit
-    if (EntityMeshMap.Num() >= MaxPoolSize)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("UnitMeshPool: Pool size limit reached, cannot allocate more meshes"));
-        return nullptr;
-    }
-    
-    // Get a mesh from the pool or create a new one
-    USkeletalMeshComponent* Mesh = nullptr;
-    if (AvailableMeshes.Num() > 0)
-    {
-        Mesh = AvailableMeshes.Pop();
-    }
-    else
-    {
-        Mesh = this->CreateMeshComponent();
-    }
-    
-    // Skip if failed to get a mesh
-    if (!Mesh)
-    {
-        UE_LOG(LogTemp, Error, TEXT("UnitMeshPool: Failed to get mesh for entity %s"), *Entity.ToString());
-        return nullptr;
-    }
-    
-    // Update mesh from entity data
-    this->UpdateMeshFromEntity(Mesh, Entity);
-    
-    // Add to maps
-    EntityMeshMap.Add(Entity, Mesh);
-    MeshEntityMap.Add(Mesh, Entity);
-    
-    return Mesh;
+	if (!IsEntityValid(Entity) || MaxPoolSize <= 0)
+	{
+		return nullptr;
+	}
+	if (USkeletalMeshComponent* Existing = EntityMeshMap.FindRef(Entity))
+	{
+		return Existing;
+	}
+	if (EntityMeshMap.Num() >= MaxPoolSize)
+	{
+		return nullptr;
+	}
+
+	USkeletalMeshComponent* Mesh = nullptr;
+	if (AvailableMeshes.IsEmpty())
+	{
+		Mesh = CreateMeshComponent();
+	}
+	else
+	{
+		Mesh = AvailableMeshes.Pop(EAllowShrinking::No).Get();
+	}
+	if (!Mesh)
+	{
+		return nullptr;
+	}
+	EntityMeshMap.Add(Entity, Mesh);
+	MeshEntityMap.Add(Mesh, Entity);
+	UpdateMeshFromEntity(Mesh, Entity);
+	return Mesh;
 }
 
 void UUnitMeshPool::ReleaseMesh(USkeletalMeshComponent* Mesh)
 {
-    // Skip if null
-    if (!Mesh)
-    {
-        return;
-    }
-    
-    // Get entity for this mesh
-    FMassUnitEntityHandle* EntityPtr = MeshEntityMap.Find(Mesh);
-    if (!EntityPtr)
-    {
-        // Mesh not in pool, just destroy it
-        Mesh->DestroyComponent();
-        return;
-    }
-    
-    // Get entity
-    FMassUnitEntityHandle Entity = *EntityPtr;
-    
-    // Remove from maps
-    EntityMeshMap.Remove(Entity);
-    MeshEntityMap.Remove(Mesh);
-    
-    // Reset mesh
-    Mesh->SetVisibility(false);
-    Mesh->SetSkeletalMesh(nullptr);
-    
-    // Add to available meshes
-    AvailableMeshes.Add(Mesh);
+	if (!Mesh)
+	{
+		return;
+	}
+	FMassUnitEntityHandle Entity;
+	if (!MeshEntityMap.RemoveAndCopyValue(Mesh, Entity))
+	{
+		return;
+	}
+	EntityMeshMap.Remove(Entity);
+	Mesh->SetVisibility(false);
+	Mesh->SetSkeletalMeshAsset(nullptr);
+	AvailableMeshes.AddUnique(Mesh);
+}
+
+bool UUnitMeshPool::TransitionToSkeletal(FMassUnitHandle UnitHandle)
+{
+	return TransitionToSkeletalInternal(UnitHandle.EntityHandle);
 }
 
 bool UUnitMeshPool::TransitionToSkeletalInternal(FMassUnitEntityHandle Entity)
 {
-    // Skip if not initialized
-    if (!this->EntitySubsystem || !this->World)
-    {
-        return false;
-    }
-    
-    // Skip if entity already has a mesh
-    if (EntityMeshMap.Contains(Entity))
-    {
-        return true;
-    }
-    
-    // Get entity manager
-    FMassUnitEntityManagerFallback& EntityManager = *this->EntitySubsystem->GetMutableUnitEntityManager();
-    
-    // Skip if entity is invalid
-    if (!Entity.IsValid() || !EntityManager.IsEntityValid(Entity))
-    {
-        return false;
-    }
-    
-    // Get entity view
-    FMassUnitEntityView EntityView(EntityManager, Entity);
-    
-    // Skip if missing required fragments
-    if (!EntityView.HasFragmentData<FMassUnitVisualFragment>())
-    {
-        return false;
-    }
-    
-    // Get visual fragment
-    FMassUnitVisualFragment& VisualFragment = EntityView.GetFragmentData<FMassUnitVisualFragment>();
-    
-    // Skip if already using skeletal mesh
-    if (VisualFragment.bUseSkeletalMesh)
-    {
-        return true;
-    }
-    
-    // Get a mesh for this entity
-    USkeletalMeshComponent* Mesh = this->GetMeshForUnit(Entity);
-    if (!Mesh)
-    {
-        return false;
-    }
-    
-    // Update visual fragment
-    VisualFragment.bUseSkeletalMesh = true;
-    VisualFragment.SkeletalMeshIndex = EntityMeshMap.Num() - 1; // Index is just for tracking
-    
-    // Make mesh visible
-    Mesh->SetVisibility(true);
-    
-    UE_LOG(LogTemp, Log, TEXT("UnitMeshPool: Transitioned entity %s to skeletal mesh"), *Entity.ToString());
-    
-    return true;
+	if (!IsEntityValid(Entity))
+	{
+		return false;
+	}
+	FMassUnitVisualFragment* Visual = EntitySubsystem->GetMutableEntityManager().GetFragmentDataPtr<FMassUnitVisualFragment>(Entity.ToMassEntityHandle());
+	if (!Visual || !Visual->SkeletalMesh)
+	{
+		return false;
+	}
+	Visual->bUseSkeletalMesh = true;
+	if (USkeletalMeshComponent* Mesh = GetMeshForUnitInternal(Entity))
+	{
+		Mesh->SetVisibility(true);
+		return true;
+	}
+	Visual->bUseSkeletalMesh = false;
+	return false;
+}
+
+bool UUnitMeshPool::TransitionToVertex(FMassUnitHandle UnitHandle)
+{
+	return TransitionToVertexInternal(UnitHandle.EntityHandle);
 }
 
 bool UUnitMeshPool::TransitionToVertexInternal(FMassUnitEntityHandle Entity)
 {
-    // Skip if not initialized
-    if (!this->EntitySubsystem)
-    {
-        return false;
-    }
-    
-    // Get entity manager
-    FMassUnitEntityManagerFallback& EntityManager = *this->EntitySubsystem->GetMutableUnitEntityManager();
-    
-    // Skip if entity is invalid
-    if (!Entity.IsValid() || !EntityManager.IsEntityValid(Entity))
-    {
-        return false;
-    }
-    
-    // Get entity view
-    FMassUnitEntityView EntityView(EntityManager, Entity);
-    
-    // Skip if missing required fragments
-    if (!EntityView.HasFragmentData<FMassUnitVisualFragment>())
-    {
-        return false;
-    }
-    
-    // Get visual fragment
-    FMassUnitVisualFragment& VisualFragment = EntityView.GetFragmentData<FMassUnitVisualFragment>();
-    
-    // Skip if already using vertex animation
-    if (!VisualFragment.bUseSkeletalMesh)
-    {
-        return true;
-    }
-    
-    // Get mesh for this entity
-    USkeletalMeshComponent** MeshPtr = EntityMeshMap.Find(Entity);
-    if (!MeshPtr || !*MeshPtr)
-    {
-        // No mesh found, just update the fragment
-        VisualFragment.bUseSkeletalMesh = false;
-        VisualFragment.SkeletalMeshIndex = -1;
-        return true;
-    }
-    
-    // Get mesh
-    USkeletalMeshComponent* Mesh = *MeshPtr;
-    
-    // Release mesh
-    this->ReleaseMesh(Mesh);
-    
-    // Update visual fragment
-    VisualFragment.bUseSkeletalMesh = false;
-    VisualFragment.SkeletalMeshIndex = -1;
-    
-    UE_LOG(LogTemp, Log, TEXT("UnitMeshPool: Transitioned entity %s to vertex animation"), *Entity.ToString());
-    
-    return true;
+	if (!IsEntityValid(Entity))
+	{
+		return false;
+	}
+	if (FMassUnitVisualFragment* Visual = EntitySubsystem->GetMutableEntityManager().GetFragmentDataPtr<FMassUnitVisualFragment>(Entity.ToMassEntityHandle()))
+	{
+		Visual->bUseSkeletalMesh = false;
+	}
+	if (USkeletalMeshComponent* Mesh = EntityMeshMap.FindRef(Entity))
+	{
+		ReleaseMesh(Mesh);
+	}
+	return true;
 }
 
 USkeletalMeshComponent* UUnitMeshPool::CreateMeshComponent()
 {
-    // Skip if no world
-    if (!World)
-    {
-        UE_LOG(LogTemp, Error, TEXT("UnitMeshPool: Failed to create mesh component - no world"));
-        return nullptr;
-    }
-    
-    // Create a new skeletal mesh component
-    USkeletalMeshComponent* MeshComponent = NewObject<USkeletalMeshComponent>(this);
-    if (!MeshComponent)
-    {
-        UE_LOG(LogTemp, Error, TEXT("UnitMeshPool: Failed to create mesh component"));
-        return nullptr;
-    }
-    
-    // Register component
-    MeshComponent->RegisterComponent();
-    
-    // Set initial properties
-    MeshComponent->SetVisibility(false);
-    MeshComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-    MeshComponent->SetGenerateOverlapEvents(false);
-    
-    return MeshComponent;
+	if (!World)
+	{
+		return nullptr;
+	}
+	USkeletalMeshComponent* Component = NewObject<USkeletalMeshComponent>(World);
+	if (!Component)
+	{
+		return nullptr;
+	}
+	Component->SetMobility(EComponentMobility::Movable);
+	Component->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	Component->SetGenerateOverlapEvents(false);
+	Component->SetVisibility(false);
+	Component->RegisterComponentWithWorld(World);
+	return Component;
 }
 
 void UUnitMeshPool::UpdateMeshFromEntity(USkeletalMeshComponent* Mesh, FMassUnitEntityHandle Entity)
 {
-    // Skip if not initialized
-    if (!EntitySubsystem || !Mesh)
-    {
-        return;
-    }
-    
-    // Get entity manager
-    FMassUnitEntityManagerFallback& EntityManager = *EntitySubsystem->GetMutableUnitEntityManager();
-    
-    // Skip if entity is invalid
-    if (!Entity.IsValid() || !EntityManager.IsEntityValid(Entity))
-    {
-        return;
-    }
-    
-    // Get entity view
-    FMassUnitEntityView EntityView(EntityManager, Entity);
-    
-    // Skip if missing required fragments
-    if (!EntityView.HasFragmentData<FMassUnitTransformFragment>() || 
-        !EntityView.HasFragmentData<FMassUnitVisualFragment>() ||
-        !EntityView.HasFragmentData<FMassUnitStateFragment>())
-    {
-        return;
-    }
-    
-    // Get fragments
-    const FMassUnitTransformFragment& TransformFragment = EntityView.GetFragmentData<FMassUnitTransformFragment>();
-    const FMassUnitVisualFragment& VisualFragment = EntityView.GetFragmentData<FMassUnitVisualFragment>();
-    const FMassUnitStateFragment& StateFragment = EntityView.GetFragmentData<FMassUnitStateFragment>();
-    
-    // Set transform
-    Mesh->SetWorldTransform(TransformFragment.GetTransform());
-    
-    // Load the skeletal mesh from the visual fragment
-    if (VisualFragment.SkeletalMesh)
-    {
-        Mesh->SetSkeletalMesh(VisualFragment.SkeletalMesh);
-    }
-    
-    // Set animation state
-    if (UAnimInstance* AnimInstance = Mesh->GetAnimInstance())
-    {
-        // Note: In a real implementation, we would cast to a specific AnimInstance class
-        // and set parameters based on StateFragment.CurrentState and StateTime.
-        // For now, we'll just log the update.
-        UE_LOG(LogTemp, Verbose, TEXT("UnitMeshPool: Updating animation for entity %s, state %d"), 
-            *Entity.ToString(), (int32)StateFragment.CurrentState);
-    }
-    
-    // Make mesh visible
-    Mesh->SetVisibility(true);
+	if (!Mesh || !IsEntityValid(Entity))
+	{
+		return;
+	}
+	const FMassEntityManager& EntityManager = EntitySubsystem->GetEntityManager();
+	const FMassEntityHandle NativeHandle = Entity.ToMassEntityHandle();
+	const FMassUnitTransformFragment* Transform = EntityManager.GetFragmentDataPtr<FMassUnitTransformFragment>(NativeHandle);
+	const FMassUnitVisualFragment* Visual = EntityManager.GetFragmentDataPtr<FMassUnitVisualFragment>(NativeHandle);
+	if (!Transform || !Visual || !Visual->SkeletalMesh)
+	{
+		return;
+	}
+	if (Mesh->GetSkeletalMeshAsset() != Visual->SkeletalMesh)
+	{
+		Mesh->SetSkeletalMeshAsset(Visual->SkeletalMesh);
+	}
+	Mesh->SetWorldTransform(Transform->GetTransform());
+	Mesh->SetVisibility(Visual->bIsVisible, true);
+}
+
+bool UUnitMeshPool::IsEntityValid(FMassUnitEntityHandle Entity) const
+{
+	return EntitySubsystem && Entity.IsValid()
+		&& EntitySubsystem->GetEntityManager().IsEntityValid(Entity.ToMassEntityHandle());
 }

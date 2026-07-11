@@ -1,5 +1,7 @@
 # UE5 Large-Scale Unit System Plugin Technical Specification
 
+> Archived proposal containing class names and dependencies that were never part of the current API. Use `docs/api.md` and the public headers as the implementation contract.
+
 ## 1. Introduction
 
 ### 1.1 Purpose

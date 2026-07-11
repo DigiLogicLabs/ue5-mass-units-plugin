@@ -5,21 +5,19 @@
 #include "CoreMinimal.h"
 #include "Engine/DataAsset.h"
 #include "GameplayTagContainer.h"
-
-// ...existing code...
-
 #include "UnitConfigDataAsset.generated.h"
 
 class USkeletalMesh;
 class UStaticMesh;
 class UNiagaraSystem;
 class UTexture2D;
-// ...existing code...
 class UBehaviorTree;
 class UBlackboardData;
 
 /**
- * Data asset for configuring unit types in the Mass Unit System
+ * Optional project-facing catalog metadata for a unit type.
+ * Runtime entity creation uses UUnitTemplate; projects may use this richer
+ * asset to build their own template/content selection workflow.
  */
 UCLASS(BlueprintType)
 class MASSUNITSYSTEMRUNTIME_API UUnitConfigDataAsset : public UDataAsset
@@ -56,8 +54,6 @@ public:
     /** Vertex animation textures for different animations */
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Visual")
     TMap<FGameplayTag, TSoftObjectPtr<UTexture2D>> VertexAnimationTextures;
-    
-    // ...existing code...
     
     /** Behavior tree for AI control */
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "AI")

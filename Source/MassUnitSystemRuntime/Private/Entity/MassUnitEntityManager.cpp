@@ -1,205 +1,421 @@
 // Copyright Digi Logic Labs LLC. All Rights Reserved.
 
 #include "Entity/MassUnitEntityManager.h"
-#include "MassEntitySubsystem.h"
+
+#include "Config/MassUnitSystemSettings.h"
+#include "Core/MassUnitGameplayTags.h"
+#include "Core/MassUnitSystemRuntime.h"
 #include "Entity/UnitTemplate.h"
-#include "Entity/MassUnitFragments.h"
+#include "Engine/SkeletalMesh.h"
+#include "Engine/StaticMesh.h"
+#include "Engine/Texture2D.h"
+#include "MassEntityManager.h"
+#include "MassEntitySubsystem.h"
+#include "MassEntityView.h"
 #include "MassUnitCommonFragments.h"
-#include "Entity/MassEntityFallback.h"
-#include "MassSpawnerTypes.h"
-#include "GameplayTagContainer.h"
 
-UMassUnitEntityManager::UMassUnitEntityManager()
-    : EntitySubsystem(nullptr)
+void UMassUnitEntityManager::Initialize(UMassEntitySubsystem* InEntitySubsystem)
 {
+	EntitySubsystem = InEntitySubsystem;
+	UE_LOG(LogMassUnitSystem, Log, TEXT("Unit entity manager initialized"));
 }
 
-UMassUnitEntityManager::~UMassUnitEntityManager()
+void UMassUnitEntityManager::Deinitialize()
 {
-}
-
-void UMassUnitEntityManager::Initialize(UMassUnitEntitySubsystem* InEntitySubsystem)
-{
-    EntitySubsystem = InEntitySubsystem;
-    UE_LOG(LogTemp, Log, TEXT("MassUnitEntityManager: Initialized"));
+	// The world-owned Mass entity manager destroys its entities during world teardown.
+	// It can already be unavailable when dependent world subsystems are deinitialized,
+	// so touching it here would be both redundant and unsafe.
+	AllUnits.Reset();
+	UnitTypeMap.Reset();
+	TeamMap.Reset();
+	UnitArchetype = FMassArchetypeHandle();
+	EntitySubsystem = nullptr;
 }
 
 FMassUnitHandle UMassUnitEntityManager::CreateUnitFromTemplate(UUnitTemplate* Template, const FTransform& SpawnTransform)
 {
-    FMassUnitEntityHandle EntityHandle = CreateUnitFromTemplateInternal(Template, SpawnTransform);
-    return FMassUnitHandle(EntityHandle);
+	return FMassUnitHandle(CreateUnitFromTemplateInternal(Template, SpawnTransform));
 }
 
 FMassUnitEntityHandle UMassUnitEntityManager::CreateUnitFromTemplateInternal(UUnitTemplate* Template, const FTransform& SpawnTransform)
 {
-    if (!Template || !EntitySubsystem)
-    {
-        UE_LOG(LogTemp, Error, TEXT("MassUnitEntityManager: Failed to create unit - invalid template or entity subsystem"));
-        return FMassUnitEntityHandle();
-    }
-    FMassUnitEntityManagerFallback& EntityManager = *EntitySubsystem->GetMutableUnitEntityManager();
-    
-    // Create entity with required fragments (custom fallback logic)
-    FMassUnitEntityHandle EntityHandle = EntityManager.CreateEntity();
-    FMassUnitEntityView EntityView(EntityManager, EntityHandle);
+	if (!Template || !EntitySubsystem)
+	{
+		UE_LOG(LogMassUnitSystem, Warning, TEXT("CreateUnitFromTemplate rejected an invalid template or uninitialized manager"));
+		return {};
+	}
 
-    // Set transform
-    if (EntityView.HasFragmentData<FMassUnitTransformFragment>())
-    {
-        FMassUnitTransformFragment& TransformFragment = EntityView.GetFragmentData<FMassUnitTransformFragment>();
-        TransformFragment.SetTransform(SpawnTransform);
-    }
+	const UMassUnitSystemSettings* Settings = GetDefault<UMassUnitSystemSettings>();
+	if (Settings && AllUnits.Num() >= Settings->MaxUnits)
+	{
+		UE_LOG(LogMassUnitSystem, Warning, TEXT("Unit limit (%d) reached"), Settings->MaxUnits);
+		return {};
+	}
 
-    // Set unit state
-    if (EntityView.HasFragmentData<FMassUnitStateFragment>())
-    {
-        FMassUnitStateFragment& StateFragment = EntityView.GetFragmentData<FMassUnitStateFragment>();
-        StateFragment.CurrentState = EMassUnitState::Idle;
-        StateFragment.StateTime = 0.0f;
-        StateFragment.UnitType = Template->UnitType;
-        StateFragment.UnitLevel = Template->BaseLevel;
-    }
+	FMassEntityManager& EntityManager = EntitySubsystem->GetMutableEntityManager();
+	if (!UnitArchetype.IsValid())
+	{
+		UnitArchetype = EntityManager.CreateArchetype(Template->GetRequiredFragments());
+	}
 
-    // Set team
-    if (EntityView.HasFragmentData<FMassUnitTeamFragment>())
-    {
-        FMassUnitTeamFragment& TeamFragment = EntityView.GetFragmentData<FMassUnitTeamFragment>();
-        TeamFragment.TeamID = Template->TeamID;
-        TeamFragment.TeamColor = Template->TeamColor;
-        TeamFragment.TeamFaction = Template->TeamFaction;
-    }
+	const FMassEntityHandle NativeHandle = EntityManager.CreateEntity(UnitArchetype);
+	if (!EntityManager.IsEntityValid(NativeHandle))
+	{
+		UE_LOG(LogMassUnitSystem, Error, TEXT("Mass failed to create a unit entity"));
+		return {};
+	}
 
-    // Set visual data
-    if (EntityView.HasFragmentData<FMassUnitVisualFragment>())
-    {
-        FMassUnitVisualFragment& VisualFragment = EntityView.GetFragmentData<FMassUnitVisualFragment>();
-        VisualFragment.SkeletalMesh = Template->SkeletalMesh.LoadSynchronous();
-        VisualFragment.StaticMesh = Template->StaticMesh.LoadSynchronous();
-        VisualFragment.bUseSkeletalMesh = (VisualFragment.SkeletalMesh != nullptr);
-        VisualFragment.bIsVisible = true;
-    }
+	FMassEntityView EntityView(EntityManager, NativeHandle);
+	EntityView.GetFragmentData<FMassUnitTransformFragment>().SetTransform(SpawnTransform);
 
-    // Set ability data
-    if (EntityView.HasFragmentData<FMassUnitAbilityFragment>())
-    {
-        FMassUnitAbilityFragment& AbilityFragment = EntityView.GetFragmentData<FMassUnitAbilityFragment>();
-        AbilityFragment.AbilityHandles.Empty();
-        AbilityFragment.ActiveEffectTags.Empty();
-    }
+	FMassUnitStateFragment& State = EntityView.GetFragmentData<FMassUnitStateFragment>();
+	State.CurrentState = EMassUnitState::Idle;
+	State.UnitType = Template->UnitType.IsValid() ? Template->UnitType : UE::MassUnitSystem::Tags::UnitTypeDefault();
+	State.UnitClass = Template->UnitClass;
+	State.DefaultBehavior = Template->DefaultBehavior;
+	State.UnitLevel = FMath::Max(1, Template->BaseLevel);
+	State.MaxHealth = FMath::Max(0.0f, static_cast<float>(Template->BaseHealth));
+	State.Health = State.MaxHealth;
+	State.BaseDamage = FMath::Max(0.0f, static_cast<float>(Template->BaseDamage));
+	State.MoveSpeed = FMath::Max(0.0f, Template->MoveSpeed);
+	State.AttackRange = FMath::Max(0.0f, Template->AttackRange);
+	State.AttackCooldown = FMath::Max(0.0f, Template->AttackCooldown);
 
-    // Add to type map
-    UnitTypeMap.FindOrAdd(Template->UnitType).Add(EntityHandle);
-    // Add to team map
-    TeamMap.FindOrAdd(Template->TeamID).Add(EntityHandle);
+	FMassUnitTeamFragment& Team = EntityView.GetFragmentData<FMassUnitTeamFragment>();
+	Team.TeamID = Template->TeamID;
+	Team.TeamColor = Template->TeamColor;
+	Team.TeamFaction = Template->TeamFaction;
 
-    UE_LOG(LogTemp, Log, TEXT("MassUnitEntityManager: Created unit of type %s for team %d"), *Template->UnitType.ToString(), Template->TeamID);
-    
-    return EntityHandle;
+	FMassUnitAbilityFragment& Ability = EntityView.GetFragmentData<FMassUnitAbilityFragment>();
+	Ability.DefaultAbilityTags = Template->DefaultAbilities;
+
+	FMassUnitVisualFragment& Visual = EntityView.GetFragmentData<FMassUnitVisualFragment>();
+	Visual.SkeletalMesh = Template->SkeletalMesh.LoadSynchronous();
+	Visual.StaticMesh = Template->StaticMesh.LoadSynchronous();
+	Visual.VertexAnimationTexture = Template->VertexAnimationTexture.LoadSynchronous();
+	Visual.NormalMapTexture = Template->NormalMapTexture.LoadSynchronous();
+	Visual.AnimationTags = Template->AnimationTags;
+	Visual.CurrentAnimation = UE::MassUnitSystem::Tags::AnimationIdle();
+	Visual.TargetAnimation = Visual.CurrentAnimation;
+	Visual.bUseSkeletalMesh = false;
+	Visual.bIsVisible = true;
+
+	FMassUnitFormationFragment& Formation = EntityView.GetFragmentData<FMassUnitFormationFragment>();
+	Formation.DefaultFormation = Template->DefaultFormation;
+
+	const FMassUnitEntityHandle Handle(NativeHandle);
+	AllUnits.Add(Handle);
+	UnitTypeMap.FindOrAdd(State.UnitType).Add(Handle);
+	TeamMap.FindOrAdd(Team.TeamID).Add(Handle);
+
+	UE_LOG(LogMassUnitSystem, Verbose, TEXT("Created %s (%s, team %d)"), *Handle.ToString(), *State.UnitType.ToString(), Team.TeamID);
+	return Handle;
 }
 
 void UMassUnitEntityManager::DestroyUnit(FMassUnitHandle UnitHandle)
 {
-    DestroyUnitInternal(UnitHandle.EntityHandle);
+	DestroyUnitInternal(UnitHandle.EntityHandle);
 }
 
 void UMassUnitEntityManager::DestroyUnitInternal(FMassUnitEntityHandle EntityHandle)
 {
-    if (!EntitySubsystem || !EntityHandle.IsValid())
-    {
-        return;
-    }
+	if (!EntitySubsystem || !EntityHandle.IsValid())
+	{
+		return;
+	}
 
-    FMassUnitEntityManagerFallback& EntityManager = *EntitySubsystem->GetMutableUnitEntityManager();
-    
-    // Get unit data before destroying
-    FGameplayTag UnitType;
-    int32 TeamID = -1;
-    
-    FMassUnitEntityView EntityView(EntityManager, EntityHandle);
-    if (EntityView.HasFragmentData<FMassUnitStateFragment>())
-    {
-        UnitType = EntityView.GetFragmentData<FMassUnitStateFragment>().UnitType;
-    }
-    
-    if (EntityView.HasFragmentData<FMassUnitTeamFragment>())
-    {
-        TeamID = EntityView.GetFragmentData<FMassUnitTeamFragment>().TeamID;
-    }
-    
-    // Remove from type map
-    if (UnitType.IsValid())
-    {
-    if (TArray<FMassUnitEntityHandle>* Units = UnitTypeMap.Find(UnitType))
-        {
-            Units->Remove(EntityHandle);
-        }
-    }
-    
-    // Remove from team map
-    if (TeamID >= 0)
-    {
-    if (TArray<FMassUnitEntityHandle>* Units = TeamMap.Find(TeamID))
-        {
-            Units->Remove(EntityHandle);
-        }
-    }
-    
-    // Destroy entity
-    EntityManager.DestroyEntity(EntityHandle);
-    
-    UE_LOG(LogTemp, Log, TEXT("MassUnitEntityManager: Destroyed unit"));
+	FMassEntityManager& EntityManager = EntitySubsystem->GetMutableEntityManager();
+	const FMassEntityHandle NativeHandle = EntityHandle.ToMassEntityHandle();
+	if (!EntityManager.IsEntityValid(NativeHandle))
+	{
+		RemoveHandleFromIndexes(EntityHandle);
+		return;
+	}
+
+	const FMassUnitStateFragment* State = EntityManager.GetFragmentDataPtr<FMassUnitStateFragment>(NativeHandle);
+	const FMassUnitTeamFragment* Team = EntityManager.GetFragmentDataPtr<FMassUnitTeamFragment>(NativeHandle);
+	if (State)
+	{
+		if (TArray<FMassUnitEntityHandle>* Units = UnitTypeMap.Find(State->UnitType))
+		{
+			Units->Remove(EntityHandle);
+			if (Units->IsEmpty())
+			{
+				UnitTypeMap.Remove(State->UnitType);
+			}
+		}
+	}
+	if (Team)
+	{
+		if (TArray<FMassUnitEntityHandle>* Units = TeamMap.Find(Team->TeamID))
+		{
+			Units->Remove(EntityHandle);
+			if (Units->IsEmpty())
+			{
+				TeamMap.Remove(Team->TeamID);
+			}
+		}
+	}
+
+	AllUnits.Remove(EntityHandle);
+	EntityManager.DestroyEntity(NativeHandle);
+	UE_LOG(LogMassUnitSystem, Verbose, TEXT("Destroyed %s"), *EntityHandle.ToString());
 }
 
-TArray<FMassUnitHandle> UMassUnitEntityManager::GetUnitsByType(FGameplayTag UnitType)
+bool UMassUnitEntityManager::IsUnitValid(FMassUnitHandle UnitHandle) const
 {
-    TArray<FMassUnitHandle> Result;
-    TArray<FMassUnitEntityHandle> RawHandles = GetUnitsByTypeInternal(UnitType);
-    
-    // Convert raw handles to unit handles
-    for (const FMassUnitEntityHandle& Handle : RawHandles)
-    {
-        Result.Add(FMassUnitHandle(Handle));
-    }
-    
-    return Result;
+	return EntitySubsystem && UnitHandle.IsValid()
+		&& EntitySubsystem->GetEntityManager().IsEntityValid(UnitHandle.EntityHandle.ToMassEntityHandle());
 }
 
-TArray<FMassUnitEntityHandle> UMassUnitEntityManager::GetUnitsByTypeInternal(FGameplayTag UnitType)
+int32 UMassUnitEntityManager::GetUnitCount() const
 {
-    if (UnitType.IsValid())
-    {
-    if (TArray<FMassUnitEntityHandle>* Units = UnitTypeMap.Find(UnitType))
-        {
-            return *Units;
-        }
-    }
-    
-    return TArray<FMassUnitEntityHandle>();
+	if (!EntitySubsystem)
+	{
+		return 0;
+	}
+	const FMassEntityManager& EntityManager = EntitySubsystem->GetEntityManager();
+	int32 ValidUnitCount = 0;
+	for (const FMassUnitEntityHandle Handle : AllUnits)
+	{
+		ValidUnitCount += Handle.IsValid() && EntityManager.IsEntityValid(Handle.ToMassEntityHandle()) ? 1 : 0;
+	}
+	return ValidUnitCount;
 }
 
-TArray<FMassUnitHandle> UMassUnitEntityManager::GetUnitsByTeam(int32 TeamID)
+TArray<FMassUnitHandle> UMassUnitEntityManager::GetAllUnits() const
 {
-    TArray<FMassUnitHandle> Result;
-    TArray<FMassUnitEntityHandle> RawHandles = GetUnitsByTeamInternal(TeamID);
-    
-    // Convert raw handles to unit handles
-    for (const FMassUnitEntityHandle& Handle : RawHandles)
-    {
-        Result.Add(FMassUnitHandle(Handle));
-    }
-    
-    return Result;
+	TArray<FMassUnitHandle> Result;
+	Result.Reserve(AllUnits.Num());
+	for (const FMassUnitEntityHandle Handle : AllUnits)
+	{
+		if (EntitySubsystem && EntitySubsystem->GetEntityManager().IsEntityValid(Handle.ToMassEntityHandle()))
+		{
+			Result.Emplace(Handle);
+		}
+	}
+	return Result;
 }
 
-TArray<FMassUnitEntityHandle> UMassUnitEntityManager::GetUnitsByTeamInternal(int32 TeamID)
+TArray<FMassUnitHandle> UMassUnitEntityManager::GetUnitsByType(FGameplayTag UnitType) const
 {
-    if (TeamID >= 0)
-    {
-    if (TArray<FMassUnitEntityHandle>* Units = TeamMap.Find(TeamID))
-        {
-            return *Units;
-        }
-    }
-    
-    return TArray<FMassUnitEntityHandle>();
+	TArray<FMassUnitHandle> Result;
+	for (const FMassUnitEntityHandle Handle : GetUnitsByTypeInternal(UnitType))
+	{
+		Result.Emplace(Handle);
+	}
+	return Result;
+}
+
+TArray<FMassUnitHandle> UMassUnitEntityManager::GetUnitsByTeam(int32 TeamID) const
+{
+	TArray<FMassUnitHandle> Result;
+	for (const FMassUnitEntityHandle Handle : GetUnitsByTeamInternal(TeamID))
+	{
+		Result.Emplace(Handle);
+	}
+	return Result;
+}
+
+TArray<FMassUnitEntityHandle> UMassUnitEntityManager::GetUnitsByTypeInternal(FGameplayTag UnitType) const
+{
+	if (const TArray<FMassUnitEntityHandle>* Units = UnitTypeMap.Find(UnitType))
+	{
+		TArray<FMassUnitEntityHandle> Result = *Units;
+		Result.RemoveAll([this](const FMassUnitEntityHandle Handle)
+		{
+			return !EntitySubsystem || !EntitySubsystem->GetEntityManager().IsEntityValid(Handle.ToMassEntityHandle());
+		});
+		return Result;
+	}
+	return {};
+}
+
+TArray<FMassUnitEntityHandle> UMassUnitEntityManager::GetUnitsByTeamInternal(int32 TeamID) const
+{
+	if (const TArray<FMassUnitEntityHandle>* Units = TeamMap.Find(TeamID))
+	{
+		TArray<FMassUnitEntityHandle> Result = *Units;
+		Result.RemoveAll([this](const FMassUnitEntityHandle Handle)
+		{
+			return !EntitySubsystem || !EntitySubsystem->GetEntityManager().IsEntityValid(Handle.ToMassEntityHandle());
+		});
+		return Result;
+	}
+	return {};
+}
+
+bool UMassUnitEntityManager::GetUnitTransform(FMassUnitHandle UnitHandle, FTransform& OutTransform) const
+{
+	if (!IsUnitValid(UnitHandle))
+	{
+		return false;
+	}
+	const FMassUnitTransformFragment* Transform = EntitySubsystem->GetEntityManager().GetFragmentDataPtr<FMassUnitTransformFragment>(UnitHandle.EntityHandle.ToMassEntityHandle());
+	if (!Transform)
+	{
+		return false;
+	}
+	OutTransform = Transform->GetTransform();
+	return true;
+}
+
+bool UMassUnitEntityManager::SetUnitTransform(FMassUnitHandle UnitHandle, const FTransform& NewTransform)
+{
+	if (!IsUnitValid(UnitHandle))
+	{
+		return false;
+	}
+	FMassUnitTransformFragment* Transform = EntitySubsystem->GetMutableEntityManager().GetFragmentDataPtr<FMassUnitTransformFragment>(UnitHandle.EntityHandle.ToMassEntityHandle());
+	if (!Transform)
+	{
+		return false;
+	}
+	Transform->SetTransform(NewTransform);
+	return true;
+}
+
+bool UMassUnitEntityManager::SetUnitDestination(FMassUnitHandle UnitHandle, const FVector& Destination, float AcceptanceRadius)
+{
+	if (!IsUnitValid(UnitHandle))
+	{
+		return false;
+	}
+	FMassEntityManager& EntityManager = EntitySubsystem->GetMutableEntityManager();
+	const FMassEntityHandle NativeHandle = UnitHandle.EntityHandle.ToMassEntityHandle();
+	FMassUnitTargetFragment* Target = EntityManager.GetFragmentDataPtr<FMassUnitTargetFragment>(NativeHandle);
+	FMassUnitNavigationFragment* Navigation = EntityManager.GetFragmentDataPtr<FMassUnitNavigationFragment>(NativeHandle);
+	if (!Target || !Navigation)
+	{
+		return false;
+	}
+
+	Target->TargetEntity.Invalidate();
+	Target->TargetLocation = Destination;
+	Target->bHasTargetLocation = true;
+	Navigation->DestinationLocation = Destination;
+	Navigation->PathPoints = {Destination};
+	Navigation->CurrentPathIndex = 0;
+	Navigation->AcceptanceRadius = FMath::Max(1.0f, AcceptanceRadius);
+	Navigation->bPathRequested = false;
+	Navigation->bPathValid = true;
+	return true;
+}
+
+bool UMassUnitEntityManager::SetUnitTarget(FMassUnitHandle UnitHandle, FMassUnitHandle TargetUnit, float Priority)
+{
+	if (!IsUnitValid(UnitHandle) || !IsUnitValid(TargetUnit) || UnitHandle.EntityHandle == TargetUnit.EntityHandle)
+	{
+		return false;
+	}
+	FMassUnitTargetFragment* Target = EntitySubsystem->GetMutableEntityManager().GetFragmentDataPtr<FMassUnitTargetFragment>(UnitHandle.EntityHandle.ToMassEntityHandle());
+	if (!Target)
+	{
+		return false;
+	}
+	Target->TargetEntity = TargetUnit.EntityHandle;
+	Target->TargetLocation = FVector::ZeroVector;
+	Target->bHasTargetLocation = false;
+	Target->TargetPriority = Priority;
+	return true;
+}
+
+void UMassUnitEntityManager::PruneInvalidUnits()
+{
+	if (!EntitySubsystem)
+	{
+		AllUnits.Reset();
+		UnitTypeMap.Reset();
+		TeamMap.Reset();
+		return;
+	}
+
+	const FMassEntityManager& EntityManager = EntitySubsystem->GetEntityManager();
+	TArray<FMassUnitEntityHandle> InvalidHandles;
+	for (const FMassUnitEntityHandle Handle : AllUnits)
+	{
+		if (!Handle.IsValid() || !EntityManager.IsEntityValid(Handle.ToMassEntityHandle()))
+		{
+			InvalidHandles.Add(Handle);
+		}
+	}
+	for (const FMassUnitEntityHandle Handle : InvalidHandles)
+	{
+		RemoveHandleFromIndexes(Handle);
+	}
+}
+
+void UMassUnitEntityManager::RemoveHandleFromIndexes(FMassUnitEntityHandle EntityHandle)
+{
+	AllUnits.Remove(EntityHandle);
+	for (auto It = UnitTypeMap.CreateIterator(); It; ++It)
+	{
+		It.Value().Remove(EntityHandle);
+		if (It.Value().IsEmpty())
+		{
+			It.RemoveCurrent();
+		}
+	}
+	for (auto It = TeamMap.CreateIterator(); It; ++It)
+	{
+		It.Value().Remove(EntityHandle);
+		if (It.Value().IsEmpty())
+		{
+			It.RemoveCurrent();
+		}
+	}
+}
+
+bool UMassUnitEntityManager::ClearUnitTarget(FMassUnitHandle UnitHandle)
+{
+	if (!IsUnitValid(UnitHandle))
+	{
+		return false;
+	}
+	FMassEntityManager& EntityManager = EntitySubsystem->GetMutableEntityManager();
+	const FMassEntityHandle NativeHandle = UnitHandle.EntityHandle.ToMassEntityHandle();
+	if (FMassUnitTargetFragment* Target = EntityManager.GetFragmentDataPtr<FMassUnitTargetFragment>(NativeHandle))
+	{
+		Target->Clear();
+	}
+	if (FMassUnitNavigationFragment* Navigation = EntityManager.GetFragmentDataPtr<FMassUnitNavigationFragment>(NativeHandle))
+	{
+		Navigation->ResetPath();
+	}
+	return true;
+}
+
+bool UMassUnitEntityManager::GetUnitState(FMassUnitHandle UnitHandle, FMassUnitStateFragment& OutState) const
+{
+	if (!IsUnitValid(UnitHandle))
+	{
+		return false;
+	}
+	const FMassUnitStateFragment* State = EntitySubsystem->GetEntityManager().GetFragmentDataPtr<FMassUnitStateFragment>(UnitHandle.EntityHandle.ToMassEntityHandle());
+	if (!State)
+	{
+		return false;
+	}
+	OutState = *State;
+	return true;
+}
+
+bool UMassUnitEntityManager::ApplyDamage(FMassUnitHandle UnitHandle, float Damage)
+{
+	if (!IsUnitValid(UnitHandle) || Damage <= 0.0f)
+	{
+		return false;
+	}
+	FMassUnitStateFragment* State = EntitySubsystem->GetMutableEntityManager().GetFragmentDataPtr<FMassUnitStateFragment>(UnitHandle.EntityHandle.ToMassEntityHandle());
+	if (!State || State->CurrentState == EMassUnitState::Dead)
+	{
+		return false;
+	}
+	State->Health = FMath::Max(0.0f, State->Health - Damage);
+	if (State->Health <= 0.0f)
+	{
+		State->CurrentState = EMassUnitState::Dead;
+		State->StateTime = 0.0f;
+	}
+	return true;
 }

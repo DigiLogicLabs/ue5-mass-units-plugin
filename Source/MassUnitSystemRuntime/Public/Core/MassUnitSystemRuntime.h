@@ -5,6 +5,8 @@
 #include "CoreMinimal.h"
 #include "Modules/ModuleManager.h"
 
+DECLARE_LOG_CATEGORY_EXTERN(LogMassUnitSystem, Log, All);
+
 /**
  * Module for the Mass Unit System runtime functionality
  */

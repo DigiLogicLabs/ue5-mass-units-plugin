@@ -1,5 +1,7 @@
 # Mass Entity System Research
 
+> Archived research notes. Current implementation details are in `docs/architecture.md` and the plugin source.
+
 ## Overview
 The Mass Entity System in Unreal Engine 5 is a data-oriented framework designed for high-performance simulation of large numbers of entities. This system is particularly relevant for our large-scale unit system plugin as it provides the foundation for efficiently managing thousands of units.
 

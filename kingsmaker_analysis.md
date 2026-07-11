@@ -1,5 +1,7 @@
 # Kingsmaker Game Analysis
 
+> Archived third-party reference analysis. It is not a claim about this plugin's current behavior or performance.
+
 ## Overview
 Kingsmaker is a game that combines third-person shooter gameplay with real-time strategy elements, featuring massive battles with thousands of units on screen simultaneously. The game serves as an excellent reference for our large-scale unit system plugin, as it implements many of the features our user requires.
 
