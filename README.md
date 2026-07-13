@@ -2,7 +2,7 @@
 
 Mass Unit System is a Blueprint- and C++-ready foundation for large groups of lightweight gameplay units using Unreal Engine's native Mass Entity framework.
 
-Version **1.2.0** is verified with **Unreal Engine 5.7.2** on Windows for Editor, Development, and Shipping targets.
+Version **1.2.1** is verified with **Unreal Engine 5.7.2** on Windows for Editor, Development, and Shipping targets.
 
 ## What works out of the box
 
@@ -59,7 +59,7 @@ This is the standard installation test. It needs no Data Asset, mesh, Niagara sy
 Default result:
 
 - 25 native Mass entities spawn in a centered 5 x 5 grid.
-- Engine cubes render through one HISM-based fallback path.
+- Engine cubes render through one stable dynamic-ISM fallback path.
 - Units move 1,500 cm along the spawner's local positive X direction.
 - Grid spacing is preserved while moving.
 - Stopping play removes only the entities owned by that spawner.
@@ -131,7 +131,7 @@ Project-wide settings are under **Project Settings > Plugins > Mass Unit System*
 | Control | Default | Purpose |
 |---|---:|---|
 | `Max Units` | 10,000 | Hard safety cap for plugin-owned units in one world |
-| `Visual Update Interval` | 0.033 s | HISM/Niagara upload rate; increase to reduce visual update cost |
+| `Visual Update Interval` | 0.033 s | ISM/Niagara upload rate; increase to reduce visual update cost |
 | `LOD Distance Thresholds` | 500/1,500/3,000/6,000 cm | Distance bands written to unit visual LOD data |
 | `Max Visible Distance` | 10,000 cm | Excludes farther units from visual submission; zero disables culling |
 | `Max Skeletal Mesh Units` | 100 | Caps close-range skeletal components; set to zero for instanced-only use |
@@ -139,7 +139,7 @@ Project-wide settings are under **Project Settings > Plugins > Mass Unit System*
 | `Max Path Requests Per Frame` | 100 | Limits asynchronous navmesh requests submitted per world tick |
 | `Enable Instanced Mesh Fallback` | On | Makes units visible without a custom Niagara system |
 | `Fallback Static Mesh` | Empty | Optional project-wide mesh used when a template has no static mesh |
-| `Default Niagara System` | Empty | Optional custom GPU renderer; HISM remains the zero-setup default |
+| `Default Niagara System` | Empty | Optional custom GPU renderer; dynamic ISM remains the zero-setup default |
 | `Fallback To Direct Path` | On | Keeps movement functional when no navmesh data exists |
 
 Blueprint diagnostics:
@@ -149,6 +149,7 @@ Blueprint diagnostics:
 - `Is Using Niagara`: whether custom Niagara rendering is active
 - `Get Instanced Mesh Component Count`: allocated fallback mesh groups
 - `Get Instanced Mesh Instance Count`: currently submitted fallback instances
+- `Get Instanced Mesh Topology Revision`: changes only when slots are added/removed; it remains stable while units move
 - `Get Queued Request Count`: queued and in-flight navigation requests
 
 Safe starting pattern:
@@ -181,7 +182,7 @@ Open **Tools > Test Automation**, filter for `MassUnitSystem`, and run:
 MassUnitSystem.Core.NativeMassLifecycle
 ```
 
-The test covers native entity creation, independent fragments, combat, path fallback, movement, formations, asset-free defaults, spawner ownership, HISM submission, destruction, and safe world teardown.
+The test covers native entity creation, independent fragments, combat, path fallback, movement, formations, asset-free defaults, spawner ownership, stable ISM updates, destruction, and safe world teardown.
 
 ## Quick troubleshooting
 

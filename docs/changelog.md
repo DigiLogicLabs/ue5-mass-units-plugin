@@ -1,10 +1,16 @@
 # Changelog
 
+## 1.2.1
+
+- Replaced the moving-unit HISM fallback with dynamic ISM components so continuous movement does not rebuild hierarchical cluster trees.
+- Replaced per-refresh clear/hide/re-add rendering with stable slots, batched in-place transform updates, and add/remove deltas only when topology changes.
+- Added a Blueprint topology-revision diagnostic and regression coverage for flicker-free transform updates and cleanup.
+
 ## 1.2.0
 
 - Added a placeable, non-ticking Mass Unit Spawner with Blueprint-writable scale, layout, movement, lifecycle, networking, and debug controls for a zero-asset blank-level workflow.
 - Added asset-free `Create Default Unit` and explicit `Get Mass Unit Subsystem` Blueprint discovery metadata.
-- Added HISM instance diagnostics and automation coverage for default creation, spawner ownership, movement commands, rendering fallback, and cleanup.
+- Added instanced-mesh diagnostics and automation coverage for default creation, spawner ownership, movement commands, rendering fallback, and cleanup.
 - Added a five-minute quick-start guide and repeatable production setup pattern.
 
 ## 1.1.0

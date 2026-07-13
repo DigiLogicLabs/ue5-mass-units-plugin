@@ -6,7 +6,7 @@
 #include "Entity/MassUnitEntityManager.h"
 #include "NiagaraUnitSystem.generated.h"
 
-class UHierarchicalInstancedStaticMeshComponent;
+class UInstancedStaticMeshComponent;
 class UMassEntitySubsystem;
 class UNiagaraComponent;
 class UNiagaraSystem;
@@ -36,13 +36,17 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Mass Unit System|Rendering")
 	bool IsUsingNiagara() const { return NiagaraComponent != nullptr; }
 
-	/** Number of HISM components currently allocated by the asset-free/static-mesh fallback. */
+	/** Number of dynamic ISM components currently allocated by the asset-free/static-mesh fallback. */
 	UFUNCTION(BlueprintPure, Category = "Mass Unit System|Rendering|Diagnostics")
 	int32 GetInstancedMeshComponentCount() const { return InstancedMeshComponents.Num(); }
 
-	/** Total instances currently submitted through the HISM fallback. Returns zero when Niagara is active. */
+	/** Total instances currently submitted through the ISM fallback. Returns zero when Niagara is active. */
 	UFUNCTION(BlueprintPure, Category = "Mass Unit System|Rendering|Diagnostics")
 	int32 GetInstancedMeshInstanceCount() const;
+
+	/** Increments only when instanced-rendering slots are added or removed, not while units move. */
+	UFUNCTION(BlueprintPure, Category = "Mass Unit System|Rendering|Diagnostics")
+	int32 GetInstancedMeshTopologyRevision() const { return InstancedMeshTopologyRevision; }
 
 	UVertexAnimationManager* GetVertexAnimationManager() const { return VertexAnimationManager; }
 
@@ -66,10 +70,11 @@ private:
 	TObjectPtr<UStaticMesh> FallbackStaticMesh = nullptr;
 
 	UPROPERTY(Transient)
-	TMap<TObjectPtr<UStaticMesh>, TObjectPtr<UHierarchicalInstancedStaticMeshComponent>> InstancedMeshComponents;
+	TMap<TObjectPtr<UStaticMesh>, TObjectPtr<UInstancedStaticMeshComponent>> InstancedMeshComponents;
 
 	int32 CurrentLODLevel = 0;
 	int32 MaxUnits = 10000;
+	int32 InstancedMeshTopologyRevision = 0;
 	float UpdateFrequency = 0.033f;
 	float LastUpdateTime = -BIG_NUMBER;
 	bool bEnableInstancedFallback = true;
@@ -77,5 +82,6 @@ private:
 	void CreateNiagaraSystem();
 	void UpdateNiagaraData(const TArray<FMassUnitEntityHandle>& Entities);
 	void UpdateInstancedMeshData(const TArray<FMassUnitEntityHandle>& Entities);
-	UHierarchicalInstancedStaticMeshComponent* GetOrCreateInstancedMeshComponent(UStaticMesh* Mesh);
+	void SynchronizeInstancedMeshComponent(UInstancedStaticMeshComponent* Component, const TArray<FTransform>& WorldTransforms);
+	UInstancedStaticMeshComponent* GetOrCreateInstancedMeshComponent(UStaticMesh* Mesh);
 };

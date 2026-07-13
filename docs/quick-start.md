@@ -83,6 +83,7 @@ At runtime, these Blueprint calls separate common failure modes:
 - `Get Unit Count` on the unit manager: world subsystem and native Mass creation succeeded.
 - `Is Using Niagara` on the visual system: reports whether a configured Niagara asset owns rendering.
 - `Get Instanced Mesh Instance Count`: reports the asset-free/static-mesh fallback instance count.
+- `Get Instanced Mesh Topology Revision`: should remain unchanged while existing units move.
 - `Get Queued Request Count` on the navigation system: exposes queued or in-flight path requests.
 
 If unit counts are correct but nothing is visible, verify there is a local player view, the spawner is within `Max Visible Distance`, and **Enable Instanced Mesh Fallback** is enabled.

@@ -2,7 +2,7 @@
 
 #include "Visual/NiagaraUnitSystem.h"
 
-#include "Components/HierarchicalInstancedStaticMeshComponent.h"
+#include "Components/InstancedStaticMeshComponent.h"
 #include "Config/MassUnitSystemSettings.h"
 #include "Core/MassUnitSystemRuntime.h"
 #include "Engine/StaticMesh.h"
@@ -21,6 +21,7 @@ void UNiagaraUnitSystem::Initialize(UWorld* InWorld, UMassEntitySubsystem* InEnt
 {
 	World = InWorld;
 	EntitySubsystem = InEntitySubsystem;
+	InstancedMeshTopologyRevision = 0;
 	const UMassUnitSystemSettings* Settings = GetDefault<UMassUnitSystemSettings>();
 	if (Settings)
 	{
@@ -45,7 +46,7 @@ void UNiagaraUnitSystem::Deinitialize()
 	{
 		NiagaraComponent->DestroyComponent();
 	}
-	for (const TPair<TObjectPtr<UStaticMesh>, TObjectPtr<UHierarchicalInstancedStaticMeshComponent>>& Pair : InstancedMeshComponents)
+	for (const TPair<TObjectPtr<UStaticMesh>, TObjectPtr<UInstancedStaticMeshComponent>>& Pair : InstancedMeshComponents)
 	{
 		if (Pair.Value)
 		{
@@ -57,6 +58,7 @@ void UNiagaraUnitSystem::Deinitialize()
 		VertexAnimationManager->Deinitialize();
 	}
 	InstancedMeshComponents.Reset();
+	InstancedMeshTopologyRevision = 0;
 	VertexAnimationManager = nullptr;
 	NiagaraComponent = nullptr;
 	NiagaraSystemAsset = nullptr;
@@ -110,7 +112,7 @@ void UNiagaraUnitSystem::SetLODLevel(int32 LODLevel)
 int32 UNiagaraUnitSystem::GetInstancedMeshInstanceCount() const
 {
 	int32 InstanceCount = 0;
-	for (const TPair<TObjectPtr<UStaticMesh>, TObjectPtr<UHierarchicalInstancedStaticMeshComponent>>& Pair : InstancedMeshComponents)
+	for (const TPair<TObjectPtr<UStaticMesh>, TObjectPtr<UInstancedStaticMeshComponent>>& Pair : InstancedMeshComponents)
 	{
 		if (Pair.Value)
 		{
@@ -242,40 +244,87 @@ void UNiagaraUnitSystem::UpdateInstancedMeshData(const TArray<FMassUnitEntityHan
 		}
 	}
 
-	for (const TPair<TObjectPtr<UStaticMesh>, TObjectPtr<UHierarchicalInstancedStaticMeshComponent>>& Pair : InstancedMeshComponents)
+	static const TArray<FTransform> EmptyTransforms;
+	for (const TPair<TObjectPtr<UStaticMesh>, TObjectPtr<UInstancedStaticMeshComponent>>& Pair : InstancedMeshComponents)
 	{
-		if (Pair.Value)
-		{
-			Pair.Value->ClearInstances();
-			Pair.Value->SetVisibility(false);
-		}
+		const TArray<FTransform>* DesiredTransforms = InstancesByMesh.Find(Pair.Key.Get());
+		SynchronizeInstancedMeshComponent(Pair.Value, DesiredTransforms ? *DesiredTransforms : EmptyTransforms);
 	}
 	for (const TPair<UStaticMesh*, TArray<FTransform>>& Pair : InstancesByMesh)
 	{
-		UHierarchicalInstancedStaticMeshComponent* Component = GetOrCreateInstancedMeshComponent(Pair.Key);
+		UInstancedStaticMeshComponent* Component = GetOrCreateInstancedMeshComponent(Pair.Key);
 		if (!Component)
 		{
 			continue;
 		}
-		Component->SetVisibility(true);
-		for (const FTransform& Transform : Pair.Value)
+		if (Component->GetInstanceCount() == 0)
 		{
-			Component->AddInstance(Transform, true);
+			SynchronizeInstancedMeshComponent(Component, Pair.Value);
 		}
 	}
 }
 
-UHierarchicalInstancedStaticMeshComponent* UNiagaraUnitSystem::GetOrCreateInstancedMeshComponent(UStaticMesh* Mesh)
+void UNiagaraUnitSystem::SynchronizeInstancedMeshComponent(
+	UInstancedStaticMeshComponent* Component,
+	const TArray<FTransform>& WorldTransforms)
+{
+	if (!Component)
+	{
+		return;
+	}
+
+	const int32 ExistingCount = Component->GetInstanceCount();
+	const int32 DesiredCount = WorldTransforms.Num();
+	const int32 SharedCount = FMath::Min(ExistingCount, DesiredCount);
+	if (SharedCount > 0)
+	{
+		Component->BatchUpdateInstancesTransforms(
+			0,
+			MakeArrayView(WorldTransforms).Left(SharedCount),
+			true,
+			false,
+			false);
+	}
+
+	if (DesiredCount > ExistingCount)
+	{
+		const int32 AddedCount = DesiredCount - ExistingCount;
+		Component->PreAllocateInstancesMemory(AddedCount);
+		TArray<FTransform> AddedTransforms;
+		AddedTransforms.Append(WorldTransforms.GetData() + ExistingCount, AddedCount);
+		Component->AddInstances(AddedTransforms, false, true, false);
+		++InstancedMeshTopologyRevision;
+	}
+	else if (ExistingCount > DesiredCount)
+	{
+		TArray<int32> RemovedIndices;
+		RemovedIndices.Reserve(ExistingCount - DesiredCount);
+		for (int32 InstanceIndex = ExistingCount - 1; InstanceIndex >= DesiredCount; --InstanceIndex)
+		{
+			RemovedIndices.Add(InstanceIndex);
+		}
+		Component->RemoveInstances(RemovedIndices, true);
+		++InstancedMeshTopologyRevision;
+	}
+
+	const bool bShouldBeVisible = DesiredCount > 0;
+	if (Component->IsVisible() != bShouldBeVisible)
+	{
+		Component->SetVisibility(bShouldBeVisible);
+	}
+}
+
+UInstancedStaticMeshComponent* UNiagaraUnitSystem::GetOrCreateInstancedMeshComponent(UStaticMesh* Mesh)
 {
 	if (!Mesh || !World)
 	{
 		return nullptr;
 	}
-	if (UHierarchicalInstancedStaticMeshComponent* Existing = InstancedMeshComponents.FindRef(Mesh))
+	if (UInstancedStaticMeshComponent* Existing = InstancedMeshComponents.FindRef(Mesh))
 	{
 		return Existing;
 	}
-	UHierarchicalInstancedStaticMeshComponent* Component = NewObject<UHierarchicalInstancedStaticMeshComponent>(World);
+	UInstancedStaticMeshComponent* Component = NewObject<UInstancedStaticMeshComponent>(World);
 	if (!Component)
 	{
 		return nullptr;
@@ -283,6 +332,7 @@ UHierarchicalInstancedStaticMeshComponent* UNiagaraUnitSystem::GetOrCreateInstan
 	Component->SetMobility(EComponentMobility::Movable);
 	Component->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	Component->SetGenerateOverlapEvents(false);
+	Component->SetCanEverAffectNavigation(false);
 	Component->SetStaticMesh(Mesh);
 	Component->RegisterComponentWithWorld(World);
 	InstancedMeshComponents.Add(Mesh, Component);

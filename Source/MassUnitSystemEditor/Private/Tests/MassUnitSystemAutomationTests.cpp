@@ -3,7 +3,11 @@
 #if WITH_AUTOMATION_TESTS
 
 #include "Misc/AutomationTest.h"
+#include "Templates/UnrealTemplate.h"
 
+#include "Components/HierarchicalInstancedStaticMeshComponent.h"
+#include "Components/InstancedStaticMeshComponent.h"
+#include "Config/MassUnitSystemSettings.h"
 #include "Core/MassUnitGameplayTags.h"
 #include "Core/MassUnitSubsystem.h"
 #include "Engine/World.h"
@@ -20,6 +24,7 @@
 #include "Navigation/FormationSystem.h"
 #include "Navigation/MassUnitNavigationSystem.h"
 #include "Tests/AutomationCommon.h"
+#include "UObject/UObjectIterator.h"
 #include "Visual/NiagaraUnitSystem.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
@@ -29,6 +34,9 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 
 bool FMassUnitNativeLifecycleTest::RunTest(const FString& Parameters)
 {
+	UMassUnitSystemSettings* MutableSettings = GetMutableDefault<UMassUnitSystemSettings>();
+	TGuardValue<float> VisualUpdateIntervalGuard(MutableSettings->VisualUpdateInterval, 0.0f);
+
 	FTestWorldWrapper TestWorld;
 	if (!TestTrue(TEXT("A transient game world can be created"), TestWorld.CreateTestWorld(EWorldType::Game)))
 	{
@@ -184,8 +192,51 @@ bool FMassUnitNativeLifecycleTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Quick-start units have either configured Niagara or asset-free instanced rendering"),
 		VisualSystem->IsUsingNiagara() || VisualSystem->GetInstancedMeshInstanceCount() == SpawnedUnits.Num());
 
+	if (!VisualSystem->IsUsingNiagara())
+	{
+		UInstancedStaticMeshComponent* FallbackComponent = nullptr;
+		for (TObjectIterator<UInstancedStaticMeshComponent> It; It; ++It)
+		{
+			if (It->GetWorld() == World && It->GetInstanceCount() == SpawnedUnits.Num())
+			{
+				FallbackComponent = *It;
+				break;
+			}
+		}
+		if (!TestNotNull(TEXT("Asset-free fallback creates an instanced mesh component"), FallbackComponent))
+		{
+			return false;
+		}
+		TestFalse(TEXT("Moving fallback units avoid HISM cluster-tree rebuilds"),
+			FallbackComponent->IsA<UHierarchicalInstancedStaticMeshComponent>());
+
+		FTransform BeforeVisualMove;
+		TestTrue(TEXT("Fallback instance transform is readable"),
+			FallbackComponent->GetInstanceTransform(0, BeforeVisualMove, true));
+		FTransform UpdatedUnitTransform;
+		UnitManager->GetUnitTransform(SpawnedUnits[0], UpdatedUnitTransform);
+		UpdatedUnitTransform.AddToTranslation(FVector(75.0f, 25.0f, 0.0f));
+		const int32 TopologyRevisionBeforeMove = VisualSystem->GetInstancedMeshTopologyRevision();
+		TestTrue(TEXT("Quick-start unit transform can be updated for rendering"),
+			UnitManager->SetUnitTransform(SpawnedUnits[0], UpdatedUnitTransform));
+		VisualSystem->UpdateUnitVisualsByHandles(SpawnedUnits);
+
+		FTransform AfterVisualMove;
+		TestTrue(TEXT("Fallback instance remains readable after an in-place update"),
+			FallbackComponent->GetInstanceTransform(0, AfterVisualMove, true));
+		TestTrue(TEXT("Fallback instance receives the updated unit transform"),
+			AfterVisualMove.GetLocation().Equals(UpdatedUnitTransform.GetLocation()));
+		TestEqual(TEXT("Movement does not rebuild instanced-mesh topology"),
+			VisualSystem->GetInstancedMeshTopologyRevision(), TopologyRevisionBeforeMove);
+		TestEqual(TEXT("Movement preserves the fallback instance count"),
+			VisualSystem->GetInstancedMeshInstanceCount(), SpawnedUnits.Num());
+	}
+
 	Spawner->DestroySpawnedUnits();
 	TestEqual(TEXT("Quick-start cleanup destroys only its owned Mass units"), UnitManager->GetUnitCount(), 0);
+	VisualSystem->UpdateUnitVisualsByHandles(Spawner->GetValidSpawnedUnits());
+	TestTrue(TEXT("Quick-start cleanup removes instanced fallback slots"),
+		VisualSystem->IsUsingNiagara() || VisualSystem->GetInstancedMeshInstanceCount() == 0);
 	World->DestroyActor(Spawner);
 	return true;
 }

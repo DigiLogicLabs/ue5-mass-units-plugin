@@ -34,7 +34,7 @@ The formation service owns formation membership and deterministic slot assignmen
 
 Simulation state remains in Mass. Representation is selected separately:
 
-- HISM is the zero-asset default.
+- Dynamic ISM is the zero-asset default so moving units can update stable instance slots without hierarchical tree rebuilds.
 - A configured Niagara system receives packed arrays.
 - A bounded pool supplies individual skeletal mesh components for close/high-detail units.
 

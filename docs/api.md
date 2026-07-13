@@ -48,7 +48,7 @@ The spawner is optional. Production wave managers can call the same unit-manager
 
 `UFormationSystem` creates integer formation handles and supports add/remove, target, shape, location/rotation, and member queries.
 
-`UNiagaraUnitSystem` exposes `IsUsingNiagara`, `GetInstancedMeshComponentCount`, and `GetInstancedMeshInstanceCount` for first-run rendering diagnostics.
+`UNiagaraUnitSystem` exposes `IsUsingNiagara`, `GetInstancedMeshComponentCount`, `GetInstancedMeshInstanceCount`, and `GetInstancedMeshTopologyRevision` for first-run rendering and topology-churn diagnostics.
 
 ## Optional bridges
 

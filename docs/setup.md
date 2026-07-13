@@ -24,7 +24,7 @@ Open **Project Settings > Plugins > Mass Unit System** to configure:
 
 - `Max Units`: creation safety cap, default 10,000
 - `Max Skeletal Mesh Units`: component pool capacity, default 100
-- `Visual Update Interval`: Niagara/HISM upload interval
+- `Visual Update Interval`: Niagara/ISM upload interval
 - LOD thresholds, skeletal range, and maximum visible range
 - Optional default Niagara system and fallback static mesh
 - Direct-path behavior when no nav data exists
