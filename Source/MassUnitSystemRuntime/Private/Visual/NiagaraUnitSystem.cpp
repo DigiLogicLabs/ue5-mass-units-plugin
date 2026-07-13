@@ -107,6 +107,19 @@ void UNiagaraUnitSystem::SetLODLevel(int32 LODLevel)
 	}
 }
 
+int32 UNiagaraUnitSystem::GetInstancedMeshInstanceCount() const
+{
+	int32 InstanceCount = 0;
+	for (const TPair<TObjectPtr<UStaticMesh>, TObjectPtr<UHierarchicalInstancedStaticMeshComponent>>& Pair : InstancedMeshComponents)
+	{
+		if (Pair.Value)
+		{
+			InstanceCount += Pair.Value->GetInstanceCount();
+		}
+	}
+	return InstanceCount;
+}
+
 void UNiagaraUnitSystem::CreateNiagaraSystem()
 {
 	if (!World || !NiagaraSystemAsset)

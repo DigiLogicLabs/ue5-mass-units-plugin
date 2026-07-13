@@ -1,25 +1,28 @@
 # Mass Unit System for Unreal Engine 5
 
-Mass Unit System is a source plugin for building lightweight gameplay units on Unreal Engine's native Mass Entity framework. Version 1.1.0 is verified with Unreal Engine 5.7.2 on Windows for Editor, Development, and Shipping targets.
+Mass Unit System is a Blueprint- and C++-ready foundation for large groups of lightweight gameplay units using Unreal Engine's native Mass Entity framework.
 
-The plugin works without bundled art assets: units use their template's static mesh when supplied and otherwise fall back to an instanced engine cube. A project can opt into a custom Niagara system, skeletal representations, Gameplay Ability System components, or Behavior Trees as needed.
+Version **1.2.0** is verified with **Unreal Engine 5.7.2** on Windows for Editor, Development, and Shipping targets.
 
-## What works
+## What works out of the box
 
-- Native, world-owned `FMassEntityHandle` entities and per-entity Mass fragments
-- Blueprint and C++ unit creation, destruction, lookup, transforms, destinations, targets, teams, and damage
-- Auto-registered Mass movement, combat, and visibility processors
-- Batched asynchronous navmesh paths with a configurable direct-path fallback
-- Rectangle, line, column, wedge, and circle formation slots and formation movement
-- Asset-free hierarchical instanced static-mesh rendering
-- Optional Niagara array upload and proximity-limited skeletal mesh pooling
-- Optional bridge to externally owned Ability System Components
-- Optional Behavior Tree/Blackboard bridge for a deliberately small subset of units
-- Native lifecycle automation coverage in the editor module
+- Native, world-owned Mass entities—no Actor or UObject per unit
+- A placeable **Mass Unit Spawner** with Blueprint-writable controls
+- Visible engine-cube fallback with no project assets required
+- Instanced static-mesh rendering for large unit counts
+- Movement, targets, teams, lightweight combat, formations, and batched navigation
+- Distance visibility/LOD controls and a bounded skeletal-mesh pool
+- Optional Niagara, Gameplay Ability System, and Behavior Tree integrations
+- Automatic world-subsystem initialization and deterministic cleanup
 
-## Install
+## 1. Install
 
-Clone or copy the repository anywhere under your project's `Plugins` directory. The folder name does not need to match the plugin name.
+Clone or copy the repository below the project's `Plugins` directory:
+
+```powershell
+Set-Location 'YourProject\Plugins'
+git clone https://github.com/DigiLogicLabs/ue5-mass-units-plugin.git
+```
 
 ```text
 YourProject/
@@ -28,46 +31,189 @@ YourProject/
       MassUnitSystem.uplugin
 ```
 
-Open the project and allow Unreal to compile the plugin. The descriptor enables the required engine plugins (`MassGameplay`, `Niagara`, and `GameplayAbilities`) and enables Mass Unit System by default. A source build requires a C++ toolchain supported by your Unreal Engine installation.
+For this project the expected descriptor is:
 
-The source descriptor is intentionally not pinned to one engine patch version. UE 5.7.2 is the validated baseline; compile and test before using another engine minor version.
-
-## First unit
-
-1. In the Content Browser, create a **Data Asset** of class `UnitTemplate`.
-2. Set health, damage, speed, team, and an optional static or skeletal mesh.
-3. In a gameplay Blueprint, call `Get Mass Unit Subsystem` with a world-context object.
-4. Call `Get Unit Manager`, then `Create Unit From Template`.
-5. Send the returned `MassUnitHandle` to `Set Unit Destination`, `Request Path`, formation, targeting, or damage functions.
-
-The subsystem is a `UTickableWorldSubsystem`; projects do not create or manually initialize it.
-
-```cpp
-#include "Core/MassUnitSubsystem.h"
-#include "Entity/MassUnitEntityManager.h"
-#include "Entity/UnitTemplate.h"
-
-if (UMassUnitSubsystem* Units = UMassUnitSubsystem::Get(this))
-{
-    const FMassUnitHandle Unit = Units->GetUnitManager()->CreateUnitFromTemplate(
-        UnitTemplate,
-        FTransform(SpawnLocation));
-
-    Units->GetUnitManager()->SetUnitDestination(Unit, Destination, 50.0f);
-}
+```text
+MetalLegsGAS/Plugins/ue5-mass-units-plugin/MassUnitSystem.uplugin
 ```
 
-## Optional integrations
+Then:
 
-GAS remains actor/ASC-owned by design. Register an existing `UAbilitySystemComponent` for only the Mass units that need full GAS behavior, then use the bridge to grant, activate, or apply effects. The plugin never creates one actor and ASC per Mass entity.
+1. Open the `.uproject`.
+2. Allow Unreal to compile the plugin when prompted.
+3. Open **Edit > Plugins > Gameplay** and confirm **Mass Unit System** is enabled.
+4. Restart the editor after the first compile or any C++ plugin update.
 
-For custom Niagara rendering, assign a system in **Project Settings > Plugins > Mass Unit System**. The expected user parameters are documented in [docs/usage.md](docs/usage.md). With no Niagara asset configured, instanced rendering remains functional.
+The descriptor automatically enables the required engine plugins: `MassGameplay`, `Niagara`, and `GameplayAbilities`. No third-party plugin is required. A Blueprint-only host still needs an Unreal-supported C++ toolchain to compile this source plugin.
 
-## Build and test
+## 2. See 25 moving units in a level
 
-Set `UE_ENGINE_PATH` to the Unreal Engine root, then run:
+This is the standard installation test. It needs no Data Asset, mesh, Niagara system, Mass Entity Config, or Unreal Mass Spawner.
+
+1. Open a playable map, or choose **File > New Level > Basic**.
+2. Open **Place Actors** and search for **Mass Unit Spawner**.
+3. Drag **Mass Unit Spawner** onto the floor in the visible play area.
+4. Leave `Unit Template` empty.
+5. Press **Play**. Use **Simulate** for a truly empty level without a player pawn.
+
+Default result:
+
+- 25 native Mass entities spawn in a centered 5 x 5 grid.
+- Engine cubes render through one HISM-based fallback path.
+- Units move 1,500 cm along the spawner's local positive X direction.
+- Grid spacing is preserved while moving.
+- Stopping play removes only the entities owned by that spawner.
+
+If the grid is outside the camera, select the spawner and press **F** before Play to frame it. The cyan editor arrow shows the default movement direction. Set `Enable Visual Debug` on the spawner to draw cyan spawn boxes and green destination arrows.
+
+## 3. Use your own unit mesh and stats
+
+1. In the Content Browser choose **Add > Miscellaneous > Data Asset**.
+2. Select `UnitTemplate`.
+3. Name it, for example `DA_Unit_Infantry`.
+4. Set health, damage, attack range/cooldown, move speed, team, and visual assets.
+5. Assign the Data Asset to the placed spawner's `Unit Template` field.
+
+Rendering selection is automatic:
+
+1. Template static mesh
+2. Project fallback static mesh
+3. Engine cube
+
+A skeletal mesh is used only at close range when skeletal-pool capacity is available. This keeps the large-unit path instanced by default.
+
+## Blueprint setup
+
+### Recommended: Blueprint subclass of the spawner
+
+Create a Blueprint with parent class `MassUnitSpawner`. Its setup and optimization fields are Blueprint-writable:
+
+- `Unit Template`, `Unit Count`
+- `Columns`, `Unit Spacing`, `Spawn Height`
+- `Spawn On Begin Play`, `Move On Begin Play`, `Destination Offset`
+- `Use Navigation`, `Acceptance Radius`
+- `Spawn On Authority Only`, `Destroy Spawned Units On End Play`
+- `Enable Visual Debug`, `Debug Duration`
+
+Useful Blueprint functions:
+
+- `Spawn Units`
+- `Move Spawned Units By Offset`
+- `Command Spawned Units To Location`
+- `Get Valid Spawned Units`
+- `Get Valid Spawned Unit Count`
+- `Destroy Spawned Units`
+
+The spawner is only an ownership/bootstrap Actor. It does not tick and it does not represent each unit with an Actor.
+
+### Direct subsystem pattern
+
+Use this in a wave manager, encounter actor, Game Mode, or Level Blueprint:
+
+```text
+Event BeginPlay
+  -> Get Mass Unit Subsystem
+  -> Get Unit Manager
+  -> Create Default Unit          (asset-free test)
+     or Create Unit From Template (production data)
+  -> store MassUnitHandle
+  -> Set Unit Destination
+```
+
+Keep returned handles in the system that owns the wave. Before reusing a long-lived handle, call `Is Unit Valid`. Call `Destroy Unit` when that owner ends.
+
+The subsystem is a `UTickableWorldSubsystem`; never construct it manually or add it to a Game Instance.
+
+## Scale and optimization controls
+
+Project-wide settings are under **Project Settings > Plugins > Mass Unit System**. Blueprints can read them through `Get Mass Unit System Settings`; per-spawner controls are Blueprint-readable and writable.
+
+| Control | Default | Purpose |
+|---|---:|---|
+| `Max Units` | 10,000 | Hard safety cap for plugin-owned units in one world |
+| `Visual Update Interval` | 0.033 s | HISM/Niagara upload rate; increase to reduce visual update cost |
+| `LOD Distance Thresholds` | 500/1,500/3,000/6,000 cm | Distance bands written to unit visual LOD data |
+| `Max Visible Distance` | 10,000 cm | Excludes farther units from visual submission; zero disables culling |
+| `Max Skeletal Mesh Units` | 100 | Caps close-range skeletal components; set to zero for instanced-only use |
+| `Skeletal Mesh Distance` | 300 cm | Distance inside which eligible units request skeletal representation |
+| `Max Path Requests Per Frame` | 100 | Limits asynchronous navmesh requests submitted per world tick |
+| `Enable Instanced Mesh Fallback` | On | Makes units visible without a custom Niagara system |
+| `Fallback Static Mesh` | Empty | Optional project-wide mesh used when a template has no static mesh |
+| `Default Niagara System` | Empty | Optional custom GPU renderer; HISM remains the zero-setup default |
+| `Fallback To Direct Path` | On | Keeps movement functional when no navmesh data exists |
+
+Blueprint diagnostics:
+
+- `Get Unit Count`: number of valid plugin-owned Mass entities
+- `Get Valid Spawned Unit Count`: valid units owned by one spawner
+- `Is Using Niagara`: whether custom Niagara rendering is active
+- `Get Instanced Mesh Component Count`: allocated fallback mesh groups
+- `Get Instanced Mesh Instance Count`: currently submitted fallback instances
+- `Get Queued Request Count`: queued and in-flight navigation requests
+
+Safe starting pattern:
+
+1. Prove the install with 25 default cubes and direct movement.
+2. Assign one static mesh and test 100 units.
+3. Increase through 500 and 1,000 while profiling the target hardware.
+4. Add navmesh routing, skeletal units, Niagara, GAS, or Behavior Trees one feature at a time.
+5. Keep actor-backed GAS/Behavior Tree integration selective instead of attaching it to every entity.
+
+`Max Units` is a safety cap, not a performance guarantee. Mesh complexity, materials, navigation, gameplay logic, platform, and camera coverage determine the real budget.
+
+## Navigation and formations
+
+Direct movement works without a Nav Mesh Bounds Volume.
+
+For obstacle-aware movement:
+
+1. Add a **Nav Mesh Bounds Volume**.
+2. Build navigation and press **P** to verify the green navmesh.
+3. Enable `Use Navigation` on the spawner, or call `Request Path` from Blueprint.
+
+Formation shapes are `Rectangle`, `Line`, `Column`, `Wedge`, and `Circle`. Use the formation service when a group should retain assigned slots while moving.
+
+## Verify the plugin
+
+Open **Tools > Test Automation**, filter for `MassUnitSystem`, and run:
+
+```text
+MassUnitSystem.Core.NativeMassLifecycle
+```
+
+The test covers native entity creation, independent fragments, combat, path fallback, movement, formations, asset-free defaults, spawner ownership, HISM submission, destruction, and safe world teardown.
+
+## Quick troubleshooting
+
+**Mass Unit Spawner does not appear in Place Actors**
+
+- Confirm the plugin compiled and is enabled.
+- Restart the editor after adding/updating the source plugin.
+
+**Unit count is zero**
+
+- Spawn only from Game, PIE, or Game Preview worlds.
+- Check `Max Units` and `Get Valid Spawned Unit Count`.
+
+**Units exist but are invisible**
+
+- Confirm a local player/spectator view exists.
+- Check `Max Visible Distance` and `Enable Instanced Mesh Fallback`.
+- Call `Get Instanced Mesh Instance Count`; a positive value means rendering data was submitted.
+
+**Units do not move**
+
+- Keep `Use Navigation` off for the first test.
+- With navigation enabled, add/build a Nav Mesh Bounds Volume or keep direct-path fallback enabled.
+
+More cases are covered in [docs/troubleshooting.md](docs/troubleshooting.md).
+
+## Build the plugin in isolation
+
+Set `UE_ENGINE_PATH` to the Unreal Engine root and run:
 
 ```powershell
+$env:UE_ENGINE_PATH = 'D:\Unreal Engine\UE_5.7'
 .\build_plugin.bat
 ```
 
@@ -75,28 +221,22 @@ Set `UE_ENGINE_PATH` to the Unreal Engine root, then run:
 UE_ENGINE_PATH=/path/to/UnrealEngine ./build_plugin.sh
 ```
 
-Packaged output defaults to `Build/Package`. Optional arguments select output directory, target platform, and configuration; see [docs/setup.md](docs/setup.md).
+The package build checks Editor Development, Game Development, Game Shipping, and Unreal Header Tool processing.
 
-The editor automation test is named:
+## More documentation
 
-```text
-MassUnitSystem.Core.NativeMassLifecycle
-```
-
-## Documentation
-
+- [Five-minute quick start](docs/quick-start.md)
 - [Setup](docs/setup.md)
 - [Usage and integration](docs/usage.md)
 - [Public API](docs/api.md)
 - [Architecture](docs/architecture.md)
 - [Troubleshooting](docs/troubleshooting.md)
-- [Out-of-the-box readiness](OutOfTheBoxReadinessReport.md)
 
-## Current boundaries
+## Intentional boundaries
 
-- The repository does not include production art, VAT textures, or a Niagara asset.
-- The vertex-animation manager maps animation tags/indices; authoring and decoding VAT assets remains project-specific.
-- Mass entities are intentionally not replicated as individual actors. Add a project-specific replication strategy when multiplayer requires it.
-- Validate unit-count and rendering budgets on target hardware; the configured `MaxUnits` value is a safety cap, not a performance guarantee.
+- The repository does not bundle production art, VAT textures, or a Niagara asset.
+- VAT authoring/decoding remains project-specific.
+- Mass entities are not replicated as individual Actors; multiplayer representation/replication is project-specific.
+- UE 5.7.2 is the validated baseline. Recompile and test for another engine minor version.
 
 Copyright Digi Logic Labs LLC. All rights reserved. This repository currently contains no separate license grant.

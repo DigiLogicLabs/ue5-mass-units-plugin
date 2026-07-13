@@ -36,6 +36,14 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Mass Unit System|Rendering")
 	bool IsUsingNiagara() const { return NiagaraComponent != nullptr; }
 
+	/** Number of HISM components currently allocated by the asset-free/static-mesh fallback. */
+	UFUNCTION(BlueprintPure, Category = "Mass Unit System|Rendering|Diagnostics")
+	int32 GetInstancedMeshComponentCount() const { return InstancedMeshComponents.Num(); }
+
+	/** Total instances currently submitted through the HISM fallback. Returns zero when Niagara is active. */
+	UFUNCTION(BlueprintPure, Category = "Mass Unit System|Rendering|Diagnostics")
+	int32 GetInstancedMeshInstanceCount() const;
+
 	UVertexAnimationManager* GetVertexAnimationManager() const { return VertexAnimationManager; }
 
 private:

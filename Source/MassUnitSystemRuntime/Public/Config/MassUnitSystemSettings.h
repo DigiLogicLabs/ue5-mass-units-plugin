@@ -77,6 +77,6 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, config, Category = "Units")
 	TSoftObjectPtr<UUnitConfigDataAsset> DefaultUnitConfiguration;
 
-	UFUNCTION(BlueprintPure, Category = "Mass Unit System")
+	UFUNCTION(BlueprintPure, Category = "Mass Unit System", meta = (DisplayName = "Get Mass Unit System Settings", Keywords = "Mass Entity performance optimization LOD"))
 	static UMassUnitSystemSettings* Get();
 };

@@ -16,7 +16,7 @@ No third-party plugin is required. `MassGameplay`, `Niagara`, and `GameplayAbili
 4. Open the project and accept Unreal's compile prompt.
 5. Confirm **Edit > Plugins > Gameplay > Mass Unit System** is enabled.
 
-The world subsystem initializes itself in Game, PIE, and Game Preview worlds. Do not add it to a Game Instance or construct it manually.
+The world subsystem initializes itself in Game, PIE, and Game Preview worlds. Do not add it to a Game Instance or construct it manually. For the shortest visible validation, continue with the [five-minute quick start](quick-start.md).
 
 ## Project settings
 

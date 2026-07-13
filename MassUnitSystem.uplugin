@@ -1,7 +1,7 @@
 {
 	"FileVersion": 3,
-	"Version": 2,
-	"VersionName": "1.1.0",
+	"Version": 3,
+	"VersionName": "1.2.0",
 	"FriendlyName": "Mass Unit System",
 	"Description": "Native Mass Entity units with movement, formations, navigation, scalable rendering, and optional GAS integration",
 	"Category": "Gameplay",

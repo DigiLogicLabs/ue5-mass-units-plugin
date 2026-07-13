@@ -15,6 +15,7 @@ Resolve it from an object in a Game, PIE, or Game Preview world. It intentionall
 ## Unit creation fails
 
 - Pass a valid `UnitTemplate` Data Asset.
+- For an asset-free control case, call `Create Default Unit` or leave the `Mass Unit Spawner` template empty.
 - Check `Is Unit Valid` on the returned handle.
 - Check whether **Max Units** has been reached.
 - Look for `LogMassUnitSystem` warnings.
@@ -25,6 +26,7 @@ Resolve it from an object in a Game, PIE, or Game Preview world. It intentionall
 - A template static mesh is preferred; otherwise configure a fallback mesh. If both are empty, the engine cube should appear.
 - Check maximum visible distance and LOD settings.
 - Ensure the unit is spawned in a gameplay world and within the camera range.
+- Query `Get Instanced Mesh Instance Count`. A positive value confirms fallback instances were submitted and usually means the camera, distance, or level placement is the remaining issue.
 
 ## Units do not move
 
