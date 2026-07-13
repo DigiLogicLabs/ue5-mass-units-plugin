@@ -39,7 +39,7 @@ Formation membership writes each unit's formation fragment and destination. Dest
 
 ## Rendering
 
-The default rendering path groups visible units by static mesh into hierarchical instanced static-mesh components. It chooses, in order:
+The default rendering path groups visible units by static mesh into dynamic instanced static-mesh components with stable slots and batched transform updates. It chooses, in order:
 
 1. The unit template's static mesh
 2. The configured project fallback mesh

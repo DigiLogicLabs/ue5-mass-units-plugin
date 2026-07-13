@@ -35,6 +35,12 @@ Resolve it from an object in a Game, PIE, or Game Preview world. It intentionall
 - If no nav data exists, enable **Fallback To Direct Path**.
 - Dead or stunned units intentionally do not move.
 
+## Instanced units flash or blink while moving
+
+- Use plugin version 1.2.1 or newer. Earlier fallback rendering cleared and rebuilt HISM instances on each visual refresh.
+- Confirm `Get Instanced Mesh Instance Count` stays equal to the visible unit count.
+- `Get Instanced Mesh Topology Revision` should remain stable during movement; a rising value means units are repeatedly changing mesh groups or visibility membership.
+
 ## Combat does not apply damage
 
 - Source and target must have different team IDs.
