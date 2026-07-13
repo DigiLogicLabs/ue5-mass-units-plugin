@@ -25,6 +25,7 @@ It owns and exposes:
 
 Primary Blueprint functions:
 
+- `CreateDefaultUnit` for an asset-free visible baseline
 - `CreateUnitFromTemplate`
 - `DestroyUnit`, `IsUnitValid`, `GetUnitCount`, `GetAllUnits`
 - `GetUnitsByType`, `GetUnitsByTeam`
@@ -35,11 +36,19 @@ Primary Blueprint functions:
 
 The `Internal` variants accept native-compatible `FMassUnitEntityHandle` values for C++ systems.
 
+## Quick-start spawner
+
+`AMassUnitSpawner` is a placeable, non-ticking ownership actor. Its setup fields are Blueprint-readable/writable. It can create a centered grid from a `UnitTemplate` or the runtime default, issue direct/navmesh commands while preserving spacing, expose valid owned handles, and destroy only its own units on end play. `Spawn On Authority Only` is enabled by default to avoid accidental client/server duplication.
+
+The spawner is optional. Production wave managers can call the same unit-manager, navigation, and formation APIs directly.
+
 ## Navigation and formations
 
 `UMassUnitNavigationSystem::RequestPath` queues a request. `ProcessPathRequests` exists for explicit use but is already called by the world subsystem.
 
 `UFormationSystem` creates integer formation handles and supports add/remove, target, shape, location/rotation, and member queries.
+
+`UNiagaraUnitSystem` exposes `IsUsingNiagara`, `GetInstancedMeshComponentCount`, and `GetInstancedMeshInstanceCount` for first-run rendering diagnostics.
 
 ## Optional bridges
 

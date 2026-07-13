@@ -11,13 +11,16 @@
 #include "Entity/MassUnitEntityManager.h"
 #include "Entity/MassUnitFragments.h"
 #include "Entity/MassUnitMovementProcessor.h"
+#include "Entity/MassUnitSpawner.h"
 #include "Entity/UnitTemplate.h"
+#include "Kismet/GameplayStatics.h"
 #include "MassEntityManager.h"
 #include "MassEntitySubsystem.h"
 #include "MassExecutionContext.h"
 #include "Navigation/FormationSystem.h"
 #include "Navigation/MassUnitNavigationSystem.h"
 #include "Tests/AutomationCommon.h"
+#include "Visual/NiagaraUnitSystem.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FMassUnitNativeLifecycleTest,
@@ -130,6 +133,60 @@ bool FMassUnitNativeLifecycleTest::RunTest(const FString& Parameters)
 	UnitManager->PruneInvalidUnits();
 	TestEqual(TEXT("Externally destroyed native entities are pruned from manager indexes"), UnitManager->GetUnitCount(), 0);
 	TestEqual(TEXT("Team queries exclude externally destroyed entities"), UnitManager->GetUnitsByTeam(2).Num(), 0);
+
+	const FMassUnitHandle DefaultUnit = UnitManager->CreateDefaultUnit(FTransform(FVector(0.0f, 0.0f, 50.0f)));
+	FMassUnitStateFragment DefaultState;
+	TestTrue(TEXT("Asset-free default unit creation produces a valid native entity"), UnitManager->IsUnitValid(DefaultUnit));
+	TestTrue(TEXT("Asset-free default unit uses playable movement and health defaults"),
+		UnitManager->GetUnitState(DefaultUnit, DefaultState) && DefaultState.Health > 0.0f && DefaultState.MoveSpeed > 0.0f);
+	UnitManager->DestroyUnit(DefaultUnit);
+
+	AMassUnitSpawner* Spawner = World->SpawnActorDeferred<AMassUnitSpawner>(
+		AMassUnitSpawner::StaticClass(),
+		FTransform::Identity,
+		nullptr,
+		nullptr,
+		ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+	if (!TestNotNull(TEXT("Quick-start spawner can be created in a game world"), Spawner))
+	{
+		return false;
+	}
+	Spawner->bSpawnOnBeginPlay = false;
+	Spawner->bMoveOnBeginPlay = false;
+	Spawner->bSpawnOnAuthorityOnly = false;
+	Spawner->UnitCount = 6;
+	Spawner->Columns = 3;
+	UGameplayStatics::FinishSpawningActor(Spawner, FTransform::Identity);
+
+	const TArray<FMassUnitHandle> SpawnedUnits = Spawner->SpawnUnits();
+	TestEqual(TEXT("Quick-start spawner creates the requested native unit count"), SpawnedUnits.Num(), 6);
+	TestEqual(TEXT("Quick-start spawner tracks only valid owned units"), Spawner->GetValidSpawnedUnitCount(), 6);
+	TestEqual(TEXT("Unit manager sees every quick-start unit"), UnitManager->GetUnitCount(), 6);
+	if (SpawnedUnits.IsEmpty())
+	{
+		return false;
+	}
+
+	FTransform FirstSpawnerTransform;
+	TestTrue(TEXT("Quick-start unit transform is readable"), UnitManager->GetUnitTransform(SpawnedUnits[0], FirstSpawnerTransform));
+	TestEqual(TEXT("Quick-start offset command reaches every unit"), Spawner->MoveSpawnedUnitsByOffset(FVector(600.0f, 0.0f, 0.0f)), 6);
+	const FMassUnitNavigationFragment* SpawnerNavigation = EntityManager.GetFragmentDataPtr<FMassUnitNavigationFragment>(SpawnedUnits[0].EntityHandle.ToMassEntityHandle());
+	TestTrue(TEXT("Quick-start offset command preserves each unit's own start location"),
+		SpawnerNavigation && SpawnerNavigation->PathPoints.Num() == 1
+		&& SpawnerNavigation->PathPoints[0].Equals(FirstSpawnerTransform.GetLocation() + FVector(600.0f, 0.0f, 0.0f)));
+
+	UNiagaraUnitSystem* VisualSystem = UnitSubsystem->GetNiagaraSystem();
+	if (!TestNotNull(TEXT("Quick-start visual service is available"), VisualSystem))
+	{
+		return false;
+	}
+	VisualSystem->UpdateUnitVisualsByHandles(SpawnedUnits);
+	TestTrue(TEXT("Quick-start units have either configured Niagara or asset-free instanced rendering"),
+		VisualSystem->IsUsingNiagara() || VisualSystem->GetInstancedMeshInstanceCount() == SpawnedUnits.Num());
+
+	Spawner->DestroySpawnedUnits();
+	TestEqual(TEXT("Quick-start cleanup destroys only its owned Mass units"), UnitManager->GetUnitCount(), 0);
+	World->DestroyActor(Spawner);
 	return true;
 }
 

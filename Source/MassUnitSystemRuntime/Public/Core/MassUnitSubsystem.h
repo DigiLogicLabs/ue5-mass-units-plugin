@@ -30,7 +30,7 @@ public:
 	virtual bool DoesSupportWorldType(EWorldType::Type WorldType) const override;
 
 	/** Resolves the subsystem for a world-context object. */
-	UFUNCTION(BlueprintPure, Category = "Mass Unit System", meta = (WorldContext = "WorldContextObject"))
+	UFUNCTION(BlueprintPure, Category = "Mass Unit System", meta = (WorldContext = "WorldContextObject", DefaultToSelf = "WorldContextObject", DisplayName = "Get Mass Unit Subsystem", Keywords = "Mass Entity Units"))
 	static UMassUnitSubsystem* Get(const UObject* WorldContextObject);
 
 	UFUNCTION(BlueprintPure, Category = "Mass Unit System")

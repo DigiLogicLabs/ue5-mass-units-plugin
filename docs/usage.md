@@ -4,12 +4,16 @@
 
 Create a `UnitTemplate` Data Asset. Its values seed the native Mass fragments for every new unit: type/class tags, health, damage, movement speed, attack range/cooldown, team information, behavior/formation tags, and visual assets.
 
+For a no-asset installation check, place `AMassUnitSpawner` in a level or call `Create Default Unit`. Both use the same native fragments and the engine-cube rendering fallback. The spawner is an ownership/bootstrap actor, not a representation actor; it stores handles and performs no per-frame work. See [quick-start.md](quick-start.md).
+
 From Blueprint:
 
 1. Call `Get Mass Unit Subsystem` with any object in the gameplay world.
 2. Get `Unit Manager`.
 3. Call `Create Unit From Template` and retain the returned `MassUnitHandle`.
 4. Use the manager to read/write transforms, set a direct destination, assign or clear a target, apply lightweight damage, query units, or destroy them.
+
+The placeable spawner also exposes `Spawn Units`, `Move Spawned Units By Offset`, `Command Spawned Units To Location`, `Destroy Spawned Units`, and valid-handle diagnostics for reusable encounter or wave Blueprints.
 
 Handles contain a native Mass entity index and serial. Always call `Is Unit Valid` before reusing a long-lived handle; a destroyed entity's serial prevents an old handle from addressing a recycled entity index.
 

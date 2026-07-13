@@ -29,12 +29,22 @@ void UMassUnitEntityManager::Deinitialize()
 	UnitTypeMap.Reset();
 	TeamMap.Reset();
 	UnitArchetype = FMassArchetypeHandle();
+	RuntimeDefaultTemplate = nullptr;
 	EntitySubsystem = nullptr;
 }
 
 FMassUnitHandle UMassUnitEntityManager::CreateUnitFromTemplate(UUnitTemplate* Template, const FTransform& SpawnTransform)
 {
 	return FMassUnitHandle(CreateUnitFromTemplateInternal(Template, SpawnTransform));
+}
+
+FMassUnitHandle UMassUnitEntityManager::CreateDefaultUnit(const FTransform& SpawnTransform)
+{
+	if (!RuntimeDefaultTemplate)
+	{
+		RuntimeDefaultTemplate = NewObject<UUnitTemplate>(this, TEXT("RuntimeDefaultUnitTemplate"), RF_Transient);
+	}
+	return CreateUnitFromTemplate(RuntimeDefaultTemplate, SpawnTransform);
 }
 
 FMassUnitEntityHandle UMassUnitEntityManager::CreateUnitFromTemplateInternal(UUnitTemplate* Template, const FTransform& SpawnTransform)

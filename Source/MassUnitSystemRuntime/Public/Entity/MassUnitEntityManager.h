@@ -43,6 +43,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Mass Unit System")
 	FMassUnitHandle CreateUnitFromTemplate(UUnitTemplate* Template, const FTransform& SpawnTransform);
 
+	/** Creates a unit with the plugin's built-in gameplay defaults and asset-free cube representation. */
+	UFUNCTION(BlueprintCallable, Category = "Mass Unit System", meta = (DisplayName = "Create Default Unit", Keywords = "quick start spawn cube"))
+	FMassUnitHandle CreateDefaultUnit(const FTransform& SpawnTransform);
+
 	UFUNCTION(BlueprintCallable, Category = "Mass Unit System")
 	void DestroyUnit(FMassUnitHandle UnitHandle);
 
@@ -98,6 +102,10 @@ public:
 private:
 	UPROPERTY(Transient)
 	TObjectPtr<UMassEntitySubsystem> EntitySubsystem = nullptr;
+
+	/** Lazily created template used by CreateDefaultUnit. */
+	UPROPERTY(Transient)
+	TObjectPtr<UUnitTemplate> RuntimeDefaultTemplate = nullptr;
 
 	FMassArchetypeHandle UnitArchetype;
 	TArray<FMassUnitEntityHandle> AllUnits;
