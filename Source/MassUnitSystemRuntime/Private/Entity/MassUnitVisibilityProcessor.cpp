@@ -34,29 +34,37 @@ void UMassUnitVisibilityProcessor::Execute(FMassEntityManager& EntityManager, FM
 		return;
 	}
 
-	FVector ViewLocation = FVector::ZeroVector;
-	bool bHasView = false;
+	TArray<FVector> ViewLocations;
 	for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
 	{
 		if (APlayerController* Controller = It->Get(); Controller && Controller->IsLocalController())
 		{
+			FVector ViewLocation;
 			FRotator ViewRotation;
 			Controller->GetPlayerViewPoint(ViewLocation, ViewRotation);
-			bHasView = true;
-			break;
+			ViewLocations.Add(ViewLocation);
 		}
 	}
-	if (!bHasView)
+	if (ViewLocations.IsEmpty())
 	{
 		return;
 	}
 
 	const UMassUnitSystemSettings* Settings = GetDefault<UMassUnitSystemSettings>();
-	const TArray<float> Thresholds = Settings ? Settings->LODDistanceThresholds : TArray<float>{500.0f, 1500.0f, 3000.0f, 6000.0f};
+	TArray<float> Thresholds = Settings ? Settings->LODDistanceThresholds : TArray<float>{500.0f, 1500.0f, 3000.0f, 6000.0f};
+	Thresholds.Sort();
+	TArray<float> UpdateIntervals = Settings
+		? Settings->VisibilityLODUpdateIntervals
+		: TArray<float>{0.05f, 0.1f, 0.2f, 0.5f, 1.0f};
+	if (UpdateIntervals.IsEmpty())
+	{
+		UpdateIntervals.Add(0.1f);
+	}
 	const float SkeletalDistance = Settings ? Settings->SkeletalMeshDistance : 300.0f;
 	const float MaxVisibleDistance = Settings ? Settings->MaxVisibleDistance : 10000.0f;
+	const float CurrentTime = World->GetTimeSeconds();
 
-	EntityQuery.ForEachEntityChunk(Context, [ViewLocation, Thresholds, SkeletalDistance, MaxVisibleDistance](FMassExecutionContext& ChunkContext)
+	EntityQuery.ForEachEntityChunk(Context, [ViewLocations, Thresholds, UpdateIntervals, SkeletalDistance, MaxVisibleDistance, CurrentTime](FMassExecutionContext& ChunkContext)
 	{
 		const TConstArrayView<FMassUnitTransformFragment> Transforms = ChunkContext.GetFragmentView<FMassUnitTransformFragment>();
 		TArrayView<FMassUnitVisualFragment> Visuals = ChunkContext.GetMutableFragmentView<FMassUnitVisualFragment>();
@@ -65,7 +73,19 @@ void UMassUnitVisibilityProcessor::Execute(FMassEntityManager& EntityManager, FM
 
 		for (FMassExecutionContext::FEntityIterator It = ChunkContext.CreateEntityIterator(); It; ++It)
 		{
-			const float DistanceSquared = FVector::DistSquared(Transforms[It].GetTransform().GetLocation(), ViewLocation);
+			FMassUnitLODFragment& LOD = LODs[It];
+			if (CurrentTime < LOD.NextUpdateTime)
+			{
+				continue;
+			}
+
+			float DistanceSquared = TNumericLimits<float>::Max();
+			for (const FVector& ViewLocation : ViewLocations)
+			{
+				DistanceSquared = FMath::Min(
+					DistanceSquared,
+					FVector::DistSquared(Transforms[It].GetTransform().GetLocation(), ViewLocation));
+			}
 			int32 LODLevel = Thresholds.Num();
 			for (int32 Index = 0; Index < Thresholds.Num(); ++Index)
 			{
@@ -81,7 +101,14 @@ void UMassUnitVisibilityProcessor::Execute(FMassEntityManager& EntityManager, FM
 			Visual.bIsVisible = MaxVisibleDistance <= 0.0f || DistanceSquared <= FMath::Square(MaxVisibleDistance);
 			Visual.bUseSkeletalMesh = Visual.bIsVisible && Visual.SkeletalMesh != nullptr
 				&& DistanceSquared <= FMath::Square(SkeletalDistance);
-			LODs[It].Level = LODLevel;
+			LOD.Level = LODLevel;
+			const int32 IntervalIndex = FMath::Clamp(LODLevel, 0, UpdateIntervals.Num() - 1);
+			const float BaseInterval = UpdateIntervals.IsValidIndex(IntervalIndex)
+				? FMath::Max(0.0f, UpdateIntervals[IntervalIndex])
+				: 0.1f;
+			const FMassEntityHandle Entity = ChunkContext.GetEntity(It);
+			const float UpdateJitter = 0.85f + (static_cast<float>(Entity.Index % 31) / 30.0f) * 0.3f;
+			LOD.NextUpdateTime = CurrentTime + BaseInterval * UpdateJitter;
 			VisualizationLODs[It].LODLevel = LODLevel;
 		}
 	});

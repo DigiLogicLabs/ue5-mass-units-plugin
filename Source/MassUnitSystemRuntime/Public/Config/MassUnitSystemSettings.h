@@ -35,9 +35,33 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, config, Category = "Performance", meta = (ClampMin = "0.0", ForceUnits = "s"))
 	float VisualUpdateInterval = 0.033f;
 
+	/** Base interval for budgeted crowd decisions and spatial-hash steering. Smooth Mass movement still runs independently. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, config, Category = "Performance", meta = (ClampMin = "0.02", ForceUnits = "s"))
+	float CrowdUpdateInterval = 0.1f;
+
+	/** Maximum crowd units that can receive a decision/steering update during one crowd timer callback. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, config, Category = "Performance", meta = (ClampMin = "1", UIMin = "1"))
+	int32 MaxCrowdUnitsPerUpdate = 500;
+
+	/** Two-dimensional spatial-hash cell size used for separation and interaction neighbor searches. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, config, Category = "Performance", meta = (ClampMin = "10.0", ForceUnits = "cm"))
+	float CrowdSpatialCellSize = 200.0f;
+
 	/** Distances, in centimeters, at which a unit advances to the next visual LOD. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, config, Category = "LOD", meta = (ForceUnits = "cm"))
 	TArray<float> LODDistanceThresholds;
+
+	/** Per-LOD intervals for recomputing distance visibility. The final entry is used beyond the last visual threshold. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, config, Category = "LOD", meta = (ForceUnits = "s"))
+	TArray<float> VisibilityLODUpdateIntervals;
+
+	/** Observer distances used by behavior LOD. Decisions become less frequent after each threshold. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, config, Category = "Crowd LOD", meta = (ForceUnits = "cm"))
+	TArray<float> CrowdSimulationLODDistances;
+
+	/** Multipliers applied to the base crowd interval for successive behavior LODs. Values below one are clamped to one. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, config, Category = "Crowd LOD")
+	TArray<float> CrowdSimulationLODIntervalMultipliers;
 
 	/** Units with a skeletal mesh use it inside this distance when pool capacity permits. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, config, Category = "LOD", meta = (ClampMin = "0.0", ForceUnits = "cm"))

@@ -35,7 +35,11 @@ void AMassUnitSpawner::BeginPlay()
 	}
 
 	SpawnUnits();
-	if (bMoveOnBeginPlay)
+	if (bEnableCrowdSimulation)
+	{
+		StartCrowdSimulation();
+	}
+	else if (bMoveOnBeginPlay)
 	{
 		MoveSpawnedUnitsByOffset(DestinationOffset);
 	}
@@ -165,6 +169,7 @@ int32 AMassUnitSpawner::CommandSpawnedUnitsToLocation(FVector DestinationCenter,
 
 void AMassUnitSpawner::DestroySpawnedUnits()
 {
+	StopCrowdSimulation(true);
 	UMassUnitSubsystem* UnitSubsystem = UMassUnitSubsystem::Get(this);
 	UMassUnitEntityManager* UnitManager = UnitSubsystem ? UnitSubsystem->GetUnitManager() : nullptr;
 	if (UnitManager)
@@ -202,6 +207,59 @@ TArray<FMassUnitHandle> AMassUnitSpawner::GetValidSpawnedUnits() const
 int32 AMassUnitSpawner::GetValidSpawnedUnitCount() const
 {
 	return GetValidSpawnedUnits().Num();
+}
+
+int32 AMassUnitSpawner::StartCrowdSimulation()
+{
+	UMassUnitSubsystem* UnitSubsystem = UMassUnitSubsystem::Get(this);
+	UMassUnitCrowdSystem* CrowdSystem = UnitSubsystem ? UnitSubsystem->GetCrowdSystem() : nullptr;
+	if (!CrowdSystem || (bSpawnOnAuthorityOnly && GetNetMode() == NM_Client))
+	{
+		return INDEX_NONE;
+	}
+
+	if (CrowdGroupHandle != INDEX_NONE)
+	{
+		CrowdSystem->UnregisterCrowdGroup(CrowdGroupHandle, false);
+		CrowdGroupHandle = INDEX_NONE;
+	}
+	CrowdGroupHandle = CrowdSystem->RegisterCrowdGroup(
+		GetValidSpawnedUnits(),
+		GetActorLocation(),
+		CrowdConfig,
+		bUseNavigation,
+		AcceptanceRadius);
+	return CrowdGroupHandle;
+}
+
+void AMassUnitSpawner::StopCrowdSimulation(bool bStopUnits)
+{
+	if (CrowdGroupHandle == INDEX_NONE)
+	{
+		return;
+	}
+	if (UMassUnitSubsystem* UnitSubsystem = UMassUnitSubsystem::Get(this))
+	{
+		if (UMassUnitCrowdSystem* CrowdSystem = UnitSubsystem->GetCrowdSystem())
+		{
+			CrowdSystem->UnregisterCrowdGroup(CrowdGroupHandle, bStopUnits);
+		}
+	}
+	CrowdGroupHandle = INDEX_NONE;
+}
+
+bool AMassUnitSpawner::ForceCrowdUpdate()
+{
+	UMassUnitSubsystem* UnitSubsystem = UMassUnitSubsystem::Get(this);
+	UMassUnitCrowdSystem* CrowdSystem = UnitSubsystem ? UnitSubsystem->GetCrowdSystem() : nullptr;
+	return CrowdSystem && CrowdSystem->ForceCrowdGroupUpdate(CrowdGroupHandle);
+}
+
+bool AMassUnitSpawner::IsCrowdSimulationActive() const
+{
+	const UMassUnitSubsystem* UnitSubsystem = UMassUnitSubsystem::Get(this);
+	const UMassUnitCrowdSystem* CrowdSystem = UnitSubsystem ? UnitSubsystem->GetCrowdSystem() : nullptr;
+	return CrowdSystem && CrowdSystem->IsCrowdGroupRegistered(CrowdGroupHandle);
 }
 
 FVector AMassUnitSpawner::CalculateLocalGridOffset(int32 UnitIndex, int32 TotalUnits) const

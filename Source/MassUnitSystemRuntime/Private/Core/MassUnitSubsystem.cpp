@@ -9,6 +9,7 @@
 #include "Entity/MassUnitEntityManager.h"
 #include "Gameplay/GASUnitIntegration.h"
 #include "Gameplay/MassUnitBehaviorIntegration.h"
+#include "Gameplay/MassUnitCrowdSystem.h"
 #include "Gameplay/UnitGameplayEventSystem.h"
 #include "MassEntitySubsystem.h"
 #include "Navigation/FormationSystem.h"
@@ -35,6 +36,9 @@ void UMassUnitSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	NavigationSystem = NewObject<UMassUnitNavigationSystem>(this);
 	NavigationSystem->Initialize(GetWorld(), EntitySubsystem);
 
+	CrowdSystem = NewObject<UMassUnitCrowdSystem>(this);
+	CrowdSystem->Initialize(GetWorld(), EntitySubsystem, UnitManager, NavigationSystem);
+
 	NiagaraSystem = NewObject<UNiagaraUnitSystem>(this);
 	NiagaraSystem->Initialize(GetWorld(), EntitySubsystem);
 
@@ -56,6 +60,10 @@ void UMassUnitSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 
 void UMassUnitSubsystem::Deinitialize()
 {
+	if (CrowdSystem)
+	{
+		CrowdSystem->Deinitialize();
+	}
 	if (GameplayEventSystem)
 	{
 		GameplayEventSystem->Deinitialize();
@@ -91,6 +99,7 @@ void UMassUnitSubsystem::Deinitialize()
 
 	GameplayEventSystem = nullptr;
 	BehaviorIntegration = nullptr;
+	CrowdSystem = nullptr;
 	GASIntegration = nullptr;
 	MeshPool = nullptr;
 	NiagaraSystem = nullptr;

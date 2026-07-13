@@ -10,6 +10,7 @@ class UGASUnitIntegration;
 class UFormationSystem;
 class UMassEntitySubsystem;
 class UMassUnitBehaviorIntegration;
+class UMassUnitCrowdSystem;
 class UMassUnitEntityManager;
 class UMassUnitNavigationSystem;
 class UNiagaraUnitSystem;
@@ -55,6 +56,9 @@ public:
 	UMassUnitBehaviorIntegration* GetBehaviorIntegration() const { return BehaviorIntegration; }
 
 	UFUNCTION(BlueprintPure, Category = "Mass Unit System")
+	UMassUnitCrowdSystem* GetCrowdSystem() const { return CrowdSystem; }
+
+	UFUNCTION(BlueprintPure, Category = "Mass Unit System")
 	UUnitGameplayEventSystem* GetGameplayEventSystem() const { return GameplayEventSystem; }
 
 	UMassEntitySubsystem* GetEntitySubsystem() const { return EntitySubsystem; }
@@ -83,6 +87,9 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UMassUnitBehaviorIntegration> BehaviorIntegration = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UMassUnitCrowdSystem> CrowdSystem = nullptr;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UUnitGameplayEventSystem> GameplayEventSystem = nullptr;

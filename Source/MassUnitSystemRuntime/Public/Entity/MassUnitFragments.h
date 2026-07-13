@@ -237,6 +237,7 @@ struct MASSUNITSYSTEMRUNTIME_API FMassUnitLODFragment : public FMassFragment
 {
 	GENERATED_BODY()
 	int32 Level = 0;
+	float NextUpdateTime = 0.0f;
 };
 
 USTRUCT()
@@ -244,6 +245,42 @@ struct MASSUNITSYSTEMRUNTIME_API FMassUnitVisualizationLODFragment : public FMas
 {
 	GENERATED_BODY()
 	int32 LODLevel = 0;
+};
+
+/** Lightweight state used by the timer-driven crowd service and movement processor. */
+USTRUCT()
+struct MASSUNITSYSTEMRUNTIME_API FMassUnitCrowdFragment : public FMassFragment
+{
+	GENERATED_BODY()
+
+	FVector SteeringDirection = FVector::ZeroVector;
+	FVector LastDestination = FVector::ZeroVector;
+	FMassUnitEntityHandle InteractionPartner;
+	float BaseMoveSpeed = 0.0f;
+	float NextDecisionTime = 0.0f;
+	float NextSteeringUpdateTime = 0.0f;
+	float InteractionEndTime = 0.0f;
+	int32 GroupHandle = INDEX_NONE;
+	int32 DecisionSequence = 0;
+	int32 SimulationLOD = 0;
+	bool bEnabled = false;
+	bool bSleeping = false;
+
+	void Reset()
+	{
+		SteeringDirection = FVector::ZeroVector;
+		LastDestination = FVector::ZeroVector;
+		InteractionPartner.Invalidate();
+		BaseMoveSpeed = 0.0f;
+		NextDecisionTime = 0.0f;
+		NextSteeringUpdateTime = 0.0f;
+		InteractionEndTime = 0.0f;
+		GroupHandle = INDEX_NONE;
+		DecisionSequence = 0;
+		SimulationLOD = 0;
+		bEnabled = false;
+		bSleeping = false;
+	}
 };
 
 // These fragments intentionally own dynamic/reflected data. Mass supports such

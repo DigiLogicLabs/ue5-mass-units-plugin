@@ -29,6 +29,12 @@ public:
 
 	bool RequestPathInternal(FMassUnitEntityHandle Entity, const FVector& Destination, float AcceptanceRadius = 50.0f);
 
+	/** Cancels queued/in-flight work for one unit and clears its current path. */
+	UFUNCTION(BlueprintCallable, Category = "Mass Unit System|Navigation")
+	bool CancelPath(FMassUnitHandle UnitHandle);
+
+	bool CancelPathInternal(FMassUnitEntityHandle Entity);
+
 	UFUNCTION(BlueprintCallable, Category = "Mass Unit System|Navigation")
 	void ProcessPathRequests();
 

@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Entity/MassUnitEntityManager.h"
 #include "GameFramework/Actor.h"
+#include "Gameplay/MassUnitCrowdSystem.h"
 #include "MassUnitSpawner.generated.h"
 
 class UArrowComponent;
@@ -65,6 +66,14 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mass Unit Spawner|Movement", meta = (ClampMin = "1.0", ForceUnits = "cm"))
 	float AcceptanceRadius = 50.0f;
 
+	/** Start continuous, budgeted crowd behavior after spawning. This takes precedence over Move On Begin Play. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mass Unit Spawner|Crowd")
+	bool bEnableCrowdSimulation = false;
+
+	/** Wandering, separation, interaction, randomness, behavior LOD, and debug settings for this spawner's crowd. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mass Unit Spawner|Crowd", meta = (EditCondition = "bEnableCrowdSimulation", ShowOnlyInnerProperties))
+	FMassUnitCrowdConfig CrowdConfig;
+
 	/** Prevent duplicate autonomous simulation on network clients. Standalone and listen-server quick starts still spawn normally. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mass Unit Spawner|Networking")
 	bool bSpawnOnAuthorityOnly = true;
@@ -107,6 +116,24 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Mass Unit System|Spawner")
 	int32 GetValidSpawnedUnitCount() const;
 
+	/** Registers currently valid owned units with the world crowd service. */
+	UFUNCTION(BlueprintCallable, Category = "Mass Unit System|Spawner|Crowd", meta = (ReturnDisplayName = "Crowd Group Handle"))
+	int32 StartCrowdSimulation();
+
+	/** Unregisters this spawner's crowd group. The Mass entities remain owned by the spawner. */
+	UFUNCTION(BlueprintCallable, Category = "Mass Unit System|Spawner|Crowd")
+	void StopCrowdSimulation(bool bStopUnits = true);
+
+	/** Immediately refreshes this spawner's crowd decisions. */
+	UFUNCTION(BlueprintCallable, Category = "Mass Unit System|Spawner|Crowd")
+	bool ForceCrowdUpdate();
+
+	UFUNCTION(BlueprintPure, Category = "Mass Unit System|Spawner|Crowd")
+	bool IsCrowdSimulationActive() const;
+
+	UFUNCTION(BlueprintPure, Category = "Mass Unit System|Spawner|Crowd")
+	int32 GetCrowdGroupHandle() const { return CrowdGroupHandle; }
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
@@ -118,6 +145,9 @@ private:
 	/** Shows the default local movement direction in the editor viewport. */
 	UPROPERTY(VisibleAnywhere, Category = "Mass Unit Spawner", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UArrowComponent> DirectionArrow = nullptr;
+
+	UPROPERTY(Transient, VisibleInstanceOnly, Category = "Mass Unit Spawner|Runtime")
+	int32 CrowdGroupHandle = INDEX_NONE;
 
 	FVector CalculateLocalGridOffset(int32 UnitIndex, int32 TotalUnits) const;
 	bool CommandUnit(FMassUnitHandle UnitHandle, const FVector& Destination) const;
