@@ -1,5 +1,7 @@
 # UE5 Large-Scale Unit System Plugin Architecture
 
+> Archived proposed architecture. The implemented native Mass 1.1 architecture is documented in `docs/architecture.md`.
+
 ## Overview
 
 This document outlines the architecture for a high-performance large-scale unit system plugin for Unreal Engine 5.6. The plugin is designed to enable the rendering and simulation of thousands of units on screen simultaneously, with seamless integration with the Gameplay Ability System (GAS) and GASCompanion.

@@ -1,50 +1,108 @@
+// Copyright Digi Logic Labs LLC. All Rights Reserved.
 
 #include "Gameplay/GASUnitIntegration.h"
 
-UGASUnitIntegration::UGASUnitIntegration()
-{
-	// Stub constructor
-}
+#include "AbilitySystemComponent.h"
+#include "Abilities/GameplayAbility.h"
+#include "GameplayEffect.h"
+#include "MassEntityManager.h"
+#include "MassEntitySubsystem.h"
 
-UGASUnitIntegration::~UGASUnitIntegration()
+void UGASUnitIntegration::Initialize(UMassEntitySubsystem* InEntitySubsystem)
 {
-	// Stub destructor
+	EntitySubsystem = InEntitySubsystem;
 }
-
-void UGASUnitIntegration::Initialize(UMassUnitEntitySubsystem* InEntitySubsystem)
-414	{
-415		// NOTE: This is a stub implementation. Native GAS integration is planned for a future update.
-416		// For now, this function only provides a placeholder for initialization logic.
-417		// Stub implementation
-418	}
 
 void UGASUnitIntegration::Deinitialize()
 {
-	// Stub implementation
+	EntityASCMap.Reset();
+	EntitySubsystem = nullptr;
 }
 
-UAbilitySystemComponent* UGASUnitIntegration::GetAbilitySystemForEntity(FMassUnitHandle UnitHandle)
-423	{
-424		// NOTE: Native GAS integration is currently a placeholder. 
-425		// This will return nullptr until the full implementation is completed.
-426		// Stub implementation
-427		return nullptr;
-428	}
+bool UGASUnitIntegration::RegisterAbilitySystemForUnit(FMassUnitHandle UnitHandle, UAbilitySystemComponent* AbilitySystem)
+{
+	if (!AbilitySystem || !IsEntityValid(UnitHandle.EntityHandle))
+	{
+		return false;
+	}
+	EntityASCMap.Add(UnitHandle.EntityHandle, AbilitySystem);
+	return true;
+}
+
+void UGASUnitIntegration::UnregisterAbilitySystemForUnit(FMassUnitHandle UnitHandle)
+{
+	EntityASCMap.Remove(UnitHandle.EntityHandle);
+}
+
+UAbilitySystemComponent* UGASUnitIntegration::GetAbilitySystemForEntity(FMassUnitHandle UnitHandle) const
+{
+	return GetAbilitySystemForEntityInternal(UnitHandle.EntityHandle);
+}
+
+UAbilitySystemComponent* UGASUnitIntegration::GetAbilitySystemForEntityInternal(FMassUnitEntityHandle Entity) const
+{
+	if (!IsEntityValid(Entity))
+	{
+		return nullptr;
+	}
+	return EntityASCMap.FindRef(Entity);
+}
 
 FGameplayAbilitySpecHandle UGASUnitIntegration::GrantAbility(FMassUnitHandle UnitHandle, TSubclassOf<UGameplayAbility> AbilityClass, int32 Level)
 {
-	// Stub implementation
-	return FGameplayAbilitySpecHandle();
+	return GrantAbilityInternal(UnitHandle.EntityHandle, AbilityClass, Level);
+}
+
+FGameplayAbilitySpecHandle UGASUnitIntegration::GrantAbilityInternal(FMassUnitEntityHandle Entity, TSubclassOf<UGameplayAbility> AbilityClass, int32 Level)
+{
+	UAbilitySystemComponent* AbilitySystem = GetAbilitySystemForEntityInternal(Entity);
+	if (!AbilitySystem || !AbilityClass)
+	{
+		return {};
+	}
+	return AbilitySystem->GiveAbility(FGameplayAbilitySpec(AbilityClass, FMath::Max(1, Level)));
 }
 
 bool UGASUnitIntegration::ActivateAbility(FMassUnitHandle UnitHandle, FGameplayTag AbilityTag)
 {
-	// Stub implementation
-	return false;
+	return ActivateAbilityInternal(UnitHandle.EntityHandle, AbilityTag);
+}
+
+bool UGASUnitIntegration::ActivateAbilityInternal(FMassUnitEntityHandle Entity, FGameplayTag AbilityTag)
+{
+	UAbilitySystemComponent* AbilitySystem = GetAbilitySystemForEntityInternal(Entity);
+	if (!AbilitySystem || !AbilityTag.IsValid())
+	{
+		return false;
+	}
+	FGameplayTagContainer Tags;
+	Tags.AddTag(AbilityTag);
+	return AbilitySystem->TryActivateAbilitiesByTag(Tags);
 }
 
 bool UGASUnitIntegration::ApplyGameplayEffect(FMassUnitHandle UnitHandle, TSubclassOf<UGameplayEffect> EffectClass, AActor* Instigator)
 {
-	// Stub implementation
-	return false;
+	return ApplyGameplayEffectInternal(UnitHandle.EntityHandle, EffectClass, Instigator);
+}
+
+bool UGASUnitIntegration::ApplyGameplayEffectInternal(FMassUnitEntityHandle Entity, TSubclassOf<UGameplayEffect> EffectClass, AActor* Instigator)
+{
+	UAbilitySystemComponent* AbilitySystem = GetAbilitySystemForEntityInternal(Entity);
+	if (!AbilitySystem || !EffectClass)
+	{
+		return false;
+	}
+	FGameplayEffectContextHandle Context = AbilitySystem->MakeEffectContext();
+	if (Instigator)
+	{
+		Context.AddInstigator(Instigator, Instigator);
+	}
+	const FGameplayEffectSpecHandle Spec = AbilitySystem->MakeOutgoingSpec(EffectClass, 1.0f, Context);
+	return Spec.IsValid() && AbilitySystem->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get()).IsValid();
+}
+
+bool UGASUnitIntegration::IsEntityValid(FMassUnitEntityHandle Entity) const
+{
+	return EntitySubsystem && Entity.IsValid()
+		&& EntitySubsystem->GetEntityManager().IsEntityValid(Entity.ToMassEntityHandle());
 }

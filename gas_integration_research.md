@@ -1,5 +1,7 @@
 # GAS Integration for AI Units Research
 
+> Archived research context, not current integration guidance. Version 1.1 uses Unreal's built-in GAS through an opt-in external-ASC bridge and has no GASCompanion dependency.
+
 ## Overview
 The Gameplay Ability System (GAS) is a powerful framework in Unreal Engine for implementing gameplay abilities, attributes, and effects. GASCompanion is a plugin that extends GAS functionality and makes it more accessible. Integrating our large-scale unit system with GAS is crucial for compatibility with the user's existing project that uses GASCompanion.
 

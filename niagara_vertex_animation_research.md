@@ -1,5 +1,7 @@
 # Niagara and Vertex Animation Research
 
+> Archived research notes. Current Niagara parameters and the asset-free representation fallback are documented in `docs/usage.md`.
+
 ## Overview
 Niagara is Unreal Engine's advanced visual effects system that can be leveraged for large-scale unit simulation. When combined with vertex animation techniques, it provides a powerful solution for rendering thousands of units on screen with minimal performance impact.
 

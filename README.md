@@ -1,70 +1,102 @@
-# UE5 Mass Unit System Plugin
+# Mass Unit System for Unreal Engine 5
 
-This plugin provides a high-performance, large-scale unit system for Unreal Engine 5.6, designed to enable the rendering and simulation of thousands of units simultaneously. It features integration with the Gameplay Ability System (GAS) (Note: GAS integration is currently in a stub/placeholder state) and supports advanced behaviors like dynamic pathfinding and formation management.
+Mass Unit System is a source plugin for building lightweight gameplay units on Unreal Engine's native Mass Entity framework. Version 1.1.0 is verified with Unreal Engine 5.7.2 on Windows for Editor, Development, and Shipping targets.
 
-## Key Features
+The plugin works without bundled art assets: units use their template's static mesh when supplied and otherwise fall back to an instanced engine cube. A project can opt into a custom Niagara system, skeletal representations, Gameplay Ability System components, or Behavior Trees as needed.
 
-- **Mass Entity System Integration**: Efficient data-oriented management for large numbers of entities.
-- **Niagara-Based Rendering**: GPU-accelerated rendering for thousands of units.
-- **Vertex Animation System**: High-performance animation without skeletal overhead.
-- **GAS Integration**: Connection with existing GAS workflows (Note: Currently implemented as stubs, full integration planned).
-- **Dynamic Pathfinding & Formation System**: Efficient navigation and sophisticated formation management.
-- **LOD System**: Performance optimization through level of detail transitions.
+## What works
 
-## Getting Started
+- Native, world-owned `FMassEntityHandle` entities and per-entity Mass fragments
+- Blueprint and C++ unit creation, destruction, lookup, transforms, destinations, targets, teams, and damage
+- Auto-registered Mass movement, combat, and visibility processors
+- Batched asynchronous navmesh paths with a configurable direct-path fallback
+- Rectangle, line, column, wedge, and circle formation slots and formation movement
+- Asset-free hierarchical instanced static-mesh rendering
+- Optional Niagara array upload and proximity-limited skeletal mesh pooling
+- Optional bridge to externally owned Ability System Components
+- Optional Behavior Tree/Blackboard bridge for a deliberately small subset of units
+- Native lifecycle automation coverage in the editor module
 
-Follow these minimal steps to integrate the Mass Unit System plugin into your Unreal Engine 5.6 project.
+## Install
 
-### Prerequisites
+Clone or copy the repository anywhere under your project's `Plugins` directory. The folder name does not need to match the plugin name.
 
-- **Unreal Engine 5.6** or later installed.
-- An existing Unreal Engine 5.6 project.
-- Basic understanding of Unreal Engine Blueprint and C++.
+```text
+YourProject/
+  Plugins/
+    ue5-mass-units-plugin/
+      MassUnitSystem.uplugin
+```
 
-### Installation
+Open the project and allow Unreal to compile the plugin. The descriptor enables the required engine plugins (`MassGameplay`, `Niagara`, and `GameplayAbilities`) and enables Mass Unit System by default. A source build requires a C++ toolchain supported by your Unreal Engine installation.
 
-#### Option 1: Clone Directly into Your Project (Recommended)
+The source descriptor is intentionally not pinned to one engine patch version. UE 5.7.2 is the validated baseline; compile and test before using another engine minor version.
 
-1.  Navigate to your Unreal Engine project's root directory.
-2.  Create a `Plugins` folder if it doesn't already exist.
-3.  Open your terminal or command prompt in the `Plugins` folder.
-4.  Clone the repository:
-    ```bash
-    git clone https://github.com/DigiLogicLabs/ue5-mass-units-plugin.git MassUnitSystem
-    ```
-5.  Right-click on your `.uproject` file and select "Generate Visual Studio project files" (or your IDE's equivalent).
-6.  Open your project in Unreal Engine. The plugin should be automatically detected and compiled.
+## First unit
 
-#### Option 2: Download and Copy
+1. In the Content Browser, create a **Data Asset** of class `UnitTemplate`.
+2. Set health, damage, speed, team, and an optional static or skeletal mesh.
+3. In a gameplay Blueprint, call `Get Mass Unit Subsystem` with a world-context object.
+4. Call `Get Unit Manager`, then `Create Unit From Template`.
+5. Send the returned `MassUnitHandle` to `Set Unit Destination`, `Request Path`, formation, targeting, or damage functions.
 
-1.  Download the plugin repository as a ZIP file from GitHub.
-2.  Extract the contents into your project's `Plugins` directory. Ensure the extracted folder is named `MassUnitSystem`.
-3.  Right-click on your `.uproject` file and select "Generate Visual Studio project files".
-4.  Open your project in Unreal Engine. The plugin should be automatically detected and compiled.
+The subsystem is a `UTickableWorldSubsystem`; projects do not create or manually initialize it.
 
-### Enable Required Dependencies
+```cpp
+#include "Core/MassUnitSubsystem.h"
+#include "Entity/MassUnitEntityManager.h"
+#include "Entity/UnitTemplate.h"
 
-The Mass Unit System plugin relies on several other Unreal Engine plugins. Ensure these are enabled in your project:
+if (UMassUnitSubsystem* Units = UMassUnitSubsystem::Get(this))
+{
+    const FMassUnitHandle Unit = Units->GetUnitManager()->CreateUnitFromTemplate(
+        UnitTemplate,
+        FTransform(SpawnLocation));
 
-1.  Open your project in Unreal Engine.
-2.  Go to `Edit > Plugins`.
-3.  Search for and enable the following plugins:
-    -   **Mass Entity**
-    -   **Mass Gameplay**
-    -   **Niagara**
-    -   **Gameplay Abilities**
-    -   **GASCompanion** (Note: Support for GASCompanion is deprecated and will be removed in a future update).
-4.  Restart the Unreal Engine editor when prompted.
+    Units->GetUnitManager()->SetUnitDestination(Unit, Destination, 50.0f);
+}
+```
 
-## Usage
+## Optional integrations
 
-For detailed information on how to use the plugin, including configuring project settings, initializing the subsystem, creating unit templates, spawning units, and integrating with GAS, please refer to the `integration_guide.md` and other documentation files in the `docs/` directory of this repository.
+GAS remains actor/ASC-owned by design. Register an existing `UAbilitySystemComponent` for only the Mass units that need full GAS behavior, then use the bridge to grant, activate, or apply effects. The plugin never creates one actor and ASC per Mass entity.
 
-## Contributing
+For custom Niagara rendering, assign a system in **Project Settings > Plugins > Mass Unit System**. The expected user parameters are documented in [docs/usage.md](docs/usage.md). With no Niagara asset configured, instanced rendering remains functional.
 
-We welcome contributions! Please refer to the `CONTRIBUTING.md` (if available) for guidelines on how to contribute to this project.
+## Build and test
 
-## License
+Set `UE_ENGINE_PATH` to the Unreal Engine root, then run:
 
-This project is licensed under the [Your License Here] - see the `LICENSE` file for details.
+```powershell
+.\build_plugin.bat
+```
 
+```bash
+UE_ENGINE_PATH=/path/to/UnrealEngine ./build_plugin.sh
+```
+
+Packaged output defaults to `Build/Package`. Optional arguments select output directory, target platform, and configuration; see [docs/setup.md](docs/setup.md).
+
+The editor automation test is named:
+
+```text
+MassUnitSystem.Core.NativeMassLifecycle
+```
+
+## Documentation
+
+- [Setup](docs/setup.md)
+- [Usage and integration](docs/usage.md)
+- [Public API](docs/api.md)
+- [Architecture](docs/architecture.md)
+- [Troubleshooting](docs/troubleshooting.md)
+- [Out-of-the-box readiness](OutOfTheBoxReadinessReport.md)
+
+## Current boundaries
+
+- The repository does not include production art, VAT textures, or a Niagara asset.
+- The vertex-animation manager maps animation tags/indices; authoring and decoding VAT assets remains project-specific.
+- Mass entities are intentionally not replicated as individual actors. Add a project-specific replication strategy when multiplayer requires it.
+- Validate unit-count and rendering budgets on target hardware; the configured `MaxUnits` value is a safety cap, not a performance guarantee.
+
+Copyright Digi Logic Labs LLC. All rights reserved. This repository currently contains no separate license grant.

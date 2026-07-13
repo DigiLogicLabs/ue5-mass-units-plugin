@@ -36,6 +36,13 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Mass Unit System")
     int32 GetAnimationIndex(FGameplayTag AnimationTag);
 
+    /** Registers or replaces a VAT texture and returns its stable runtime index. */
+    UFUNCTION(BlueprintCallable, Category = "Mass Unit System")
+    int32 RegisterAnimationTexture(FGameplayTag AnimationTag, UTexture2D* Texture);
+
+    UFUNCTION(BlueprintCallable, Category = "Mass Unit System")
+    void UnregisterAnimationTexture(FGameplayTag AnimationTag);
+
 private:
     /** Map of animation tags to textures */
     UPROPERTY(Transient)
@@ -52,9 +59,5 @@ private:
     /** Load animation textures */
     void LoadAnimationTextures();
     
-    /** Create a blended animation texture */
-    UTexture2D* CreateBlendedTexture(UTexture2D* FromTexture, UTexture2D* ToTexture, float BlendAlpha);
-    
-    /** Get blend key for two animations */
-    FString GetBlendKey(FGameplayTag FromAnim, FGameplayTag ToAnim, float BlendAlpha);
+    int32 NextAnimationIndex = 0;
 };

@@ -1,38 +1,59 @@
-# UE5 Mass Units Plugin: Out-of-the-Box Readiness Report
+# Out-of-the-Box Readiness Report
 
-This report evaluates the current state of the UE5 Mass Units Plugin and details the improvements made to ensure a seamless "out-of-the-box" experience for developers.
+Audit baseline: plugin version 1.1.0, Unreal Engine 5.7.2, Win64.
 
-## 1. Executive Summary
+## Result
 
-The UE5 Mass Units Plugin has been significantly improved to move beyond a "placeholder" state and provide functional runtime systems. While some advanced integrations (like full GAS and Behavior Trees) remain structural shells, the core systems—Spawning, Navigation, Visual Rendering, and Formations—are now functional and correctly wired.
+The plugin now compiles, packages, starts, creates independent native Mass entities, simulates its core lifecycle, renders without plugin content, and shuts down safely in an otherwise empty host project.
 
-## 2. Implemented Improvements
+"Out of the box" means core unit creation, lightweight movement/combat, formation membership, direct or navmesh routing, and a visible instanced representation require no third-party plugin and no bundled art asset. Optional GAS, Behavior Tree, Niagara, skeletal, and VAT workflows still require project-owned assets or objects by design.
 
-### Core Runtime Systems
-- **Unit Spawning:** Fixed the `UMassUnitEntityManager` to correctly apply visual assets (Skeletal and Static Meshes) from `UUnitTemplate` during entity creation.
-- **Navigation:** Corrected the asynchronous pathfinding logic in `UMassUnitNavigationSystem`. Entities are now properly mapped to their path requests, ensuring that units actually receive and follow their calculated paths.
-- **Visual Rendering:** Fixed the `UNiagaraUnitSystem` to automatically locate and load the default Niagara system from the plugin's content folder, eliminating the need for manual setup in a base project.
-- **Skeletal Mesh Pool:** Implemented real skeletal mesh assignment in `UUnitMeshPool`, allowing units to correctly transition from Niagara vertex animation to full skeletal meshes when close to the camera.
+## Critical issues corrected
 
-### Stability & Portability
-- **Subsystem Bootstrap:** Resolved a critical initialization failure where the fallback entity subsystem was incorrectly treated as a native Mass dependency.
-- **Build System:** Updated `build_plugin.bat` to use environment variables, allowing it to run on any machine without hardcoded path modifications.
-- **Header Guards:** Added `#if WITH_MASSENTITY` guards to prevent compilation errors in projects where the native Mass Entity plugin is disabled.
+- Removed the fallback manager whose fragments were process-wide statics shared by every unit.
+- Replaced no-op processor execution with native Mass chunk queries.
+- Removed public compatibility headers that could shadow Unreal's `MassCommonFragments.h` and `MassCommonTypes.h`.
+- Replaced the invalid Game Instance subsystem/world dependency with a tickable world subsystem.
+- Fixed malformed GAS source and made ASC ownership explicit and opt-in.
+- Fixed async navigation ownership so callbacks update the requesting entity.
+- Replaced a hardcoded missing Niagara asset with configurable Niagara plus HISM fallback.
+- Added the mesh fields used by visual code and implemented a bounded skeletal component pool.
+- Removed unused `MassAI` and nonexistent/obsolete `GASCompanion` requirements.
+- Made shutdown independent of Mass subsystem deinitialization order.
 
-## 3. Remaining Gaps & Recommendations
+## Verification performed
 
-### Visual Assets
-- **Issue:** The repository currently lacks the actual Niagara systems and Vertex Animation Textures (VAT) referenced in the code (e.g., `/MassUnitSystem/NS_UnitSystem`).
-- **Recommendation:** Include a "Starter Content" pack within the plugin's `Content` folder containing a basic Niagara system, a sample VAT-compatible mesh, and a few common animations (Idle, Walk, Run).
+UAT `BuildPlugin` completed successfully with warnings-as-errors header generation for:
 
-### GAS & AI Integration
-- **Issue:** The Gameplay Ability System (GAS) and Behavior Tree (BT) integrations are still structural stubs.
-- **Recommendation:** Implement a basic "Passive Attribute" set for health/speed and a simple "Move To" behavior tree task that interacts with the `UMassUnitNavigationSystem` to provide a baseline for AI-driven units.
+- UnrealEditor Win64 Development
+- UnrealGame Win64 Development
+- UnrealGame Win64 Shipping
 
-### Documentation
-- **Issue:** While the `setup.md` has been updated, users may still find the transition from "Fallback" to "Native Mass" confusing.
-- **Recommendation:** Add a dedicated "Architecture" section to the docs explaining the fallback layer and providing a clear toggle or configuration setting to switch to native Mass once the user's project is ready.
+The editor automation test `MassUnitSystem.Core.NativeMassLifecycle` completed with:
 
-## 4. Conclusion
+- 1 succeeded
+- 0 succeeded with warnings
+- 0 failed
+- 0 test warnings or errors
 
-The plugin is now in a state where a developer can install it, create a unit template, and spawn units that will render and navigate correctly. The architectural "plumbing" is now solid, providing a robust foundation for further gameplay feature development.
+The test verifies two distinct native handles and transforms, team-based combat damage, direct navigation fallback, isolated movement fragments, formation add/remove, explicit entity destruction, and world teardown.
+
+## Distribution checks
+
+- Descriptor JSON parses and declares only engine plugins actually required.
+- Source descriptor has no machine-specific `EngineVersion` pin.
+- Runtime/editor module rules compile in packaged non-unity contexts.
+- Windows and Unix build helpers accept an engine root and package outside source `Binaries`.
+- The main setup, usage, API, architecture, troubleshooting, and changelog documents match the implementation.
+
+## Intentional boundaries
+
+- No production Niagara, mesh, material, VAT, behavior-tree, ability, or effect assets are included.
+- GAS and Behavior Trees are selective bridges, not per-entity defaults.
+- Multiplayer replication is project-specific.
+- The default unit cap is not a performance claim; profile representative content and hardware.
+- UE 5.7.2 is the verified engine baseline. Other minor engine versions require their own compile and runtime pass.
+
+## Release recommendation
+
+The core plugin is suitable for integration testing and upstream review as a functional native Mass foundation. Before calling it production-ready for a specific game, add project content, multiplayer requirements, soak/performance tests, and CI coverage for every supported engine/platform combination.

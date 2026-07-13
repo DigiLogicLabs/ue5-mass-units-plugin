@@ -1,317 +1,225 @@
 // Copyright Digi Logic Labs LLC. All Rights Reserved.
 
 #include "Gameplay/MassUnitBehaviorIntegration.h"
-#include "Gameplay/GASUnitIntegration.h"
-#include "Entity/MassUnitFragments.h"
 
-// Include MassEntity types or fallback
-#if WITH_MASSENTITY
-#include "MassEntitySubsystem.h"
-#include "MassEntityView.h"
-#endif
-// ...existing code...
 #include "BehaviorTree/BehaviorTree.h"
-#include "BehaviorTree/BlackboardData.h"
 #include "BehaviorTree/BehaviorTreeComponent.h"
 #include "BehaviorTree/BlackboardComponent.h"
-#include "BehaviorTree/Blackboard/BlackboardKeyType_Object.h"
-#include "BehaviorTree/Blackboard/BlackboardKeyType_Vector.h"
-#include "BehaviorTree/Blackboard/BlackboardKeyType_Float.h"
-#include "BehaviorTree/Blackboard/BlackboardKeyType_Int.h"
-#include "BehaviorTree/Blackboard/BlackboardKeyType_Bool.h"
-#include "BehaviorTree/Blackboard/BlackboardKeyType_Name.h"
-#include "BehaviorTree/Blackboard/BlackboardKeyType_Class.h"
-#include "BehaviorTree/Blackboard/BlackboardKeyType_Enum.h"
-#include "BehaviorTree/Blackboard/BlackboardKeyType_String.h"
-
-UMassUnitBehaviorIntegration::UMassUnitBehaviorIntegration()
-    : GASIntegration(nullptr)
-{
-}
-
-UMassUnitBehaviorIntegration::~UMassUnitBehaviorIntegration()
-{
-}
+#include "BehaviorTree/BlackboardData.h"
+#include "Engine/World.h"
+#include "Entity/MassUnitFragments.h"
+#include "Gameplay/GASUnitIntegration.h"
+#include "MassEntityManager.h"
+#include "MassEntitySubsystem.h"
 
 void UMassUnitBehaviorIntegration::Initialize(UGASUnitIntegration* InGASIntegration)
 {
-    GASIntegration = InGASIntegration;
-    
-    UE_LOG(LogTemp, Log, TEXT("MassUnitBehaviorIntegration: Initialized"));
+	GASIntegration = InGASIntegration;
 }
 
 void UMassUnitBehaviorIntegration::Deinitialize()
 {
-    // Clean up behavior tree components
-    for (auto& Pair : EntityBTMap)
-    {
-        UBehaviorTreeComponent* BTComp = Pair.Value;
-        if (BTComp)
-        {
-            BTComp->RemoveFromRoot();
-        }
-    }
-    
-    // Clean up blackboard components
-    for (auto& Pair : EntityBBMap)
-    {
-        UBlackboardComponent* BBComp = Pair.Value;
-        if (BBComp)
-        {
-            BBComp->RemoveFromRoot();
-        }
-    }
-    
-    // Clear maps
-    EntityBTMap.Empty();
-    EntityBBMap.Empty();
-    
-    // Clear references
-    GASIntegration = nullptr;
-    
-    UE_LOG(LogTemp, Log, TEXT("MassUnitBehaviorIntegration: Deinitialized"));
+	const TArray<FMassUnitEntityHandle> Entities = [&]()
+	{
+		TArray<FMassUnitEntityHandle> Result;
+		EntityBTMap.GetKeys(Result);
+		return Result;
+	}();
+	for (const FMassUnitEntityHandle Entity : Entities)
+	{
+		RemoveBehaviorTreeForEntity(Entity);
+	}
+	EntityBTMap.Reset();
+	EntityBBMap.Reset();
+	GASIntegration = nullptr;
 }
 
+void UMassUnitBehaviorIntegration::Tick(float DeltaTime)
+{
+	TArray<FMassUnitEntityHandle> InvalidEntities;
+	for (const TPair<FMassUnitEntityHandle, TObjectPtr<UBehaviorTreeComponent>>& Pair : EntityBTMap)
+	{
+		if (!IsEntityValid(Pair.Key))
+		{
+			InvalidEntities.Add(Pair.Key);
+			continue;
+		}
+		UpdateEntityFromBlackboard(Pair.Key);
+		UpdateBlackboardFromEntity(Pair.Key);
+	}
+	for (const FMassUnitEntityHandle Entity : InvalidEntities)
+	{
+		RemoveBehaviorTreeForEntity(Entity);
+	}
+}
 
 bool UMassUnitBehaviorIntegration::SetBehaviorTree(FMassUnitHandle UnitHandle, UBehaviorTree* BehaviorTree, UBlackboardData* BlackboardData)
 {
-    return SetBehaviorTreeInternal(UnitHandle.EntityHandle, BehaviorTree, BlackboardData);
+	return SetBehaviorTreeInternal(UnitHandle.EntityHandle, BehaviorTree, BlackboardData);
 }
 
 bool UMassUnitBehaviorIntegration::SetBehaviorTreeInternal(FMassUnitEntityHandle Entity, UBehaviorTree* BehaviorTree, UBlackboardData* BlackboardData)
 {
-    // Skip if not initialized
-    if (!GASIntegration || !BehaviorTree || !BlackboardData)
-    {
-        return false;
-    }
-    
-    // Create behavior tree component
-    UBehaviorTreeComponent* BTComp = CreateBehaviorTreeForEntity(Entity, BehaviorTree, BlackboardData);
-    if (!BTComp)
-    {
-        return false;
-    }
-    
-    // Start behavior tree
-    BTComp->StartTree(*BehaviorTree);
-    
-    UE_LOG(LogTemp, Log, TEXT("MassUnitBehaviorIntegration: Set behavior tree for entity %s"), *Entity.ToString());
-    
-    return true;
+	if (!IsEntityValid(Entity) || !BehaviorTree || !BlackboardData)
+	{
+		return false;
+	}
+	RemoveBehaviorTreeForEntity(Entity);
+	UBehaviorTreeComponent* Component = CreateBehaviorTreeForEntity(Entity, BehaviorTree, BlackboardData);
+	if (!Component)
+	{
+		return false;
+	}
+	Component->StartTree(*BehaviorTree);
+	return true;
 }
 
 bool UMassUnitBehaviorIntegration::ExecuteBTTask(FMassUnitHandle UnitHandle, FGameplayTag TaskTag)
 {
-    return ExecuteBTTaskInternal(UnitHandle.EntityHandle, TaskTag);
+	return ExecuteBTTaskInternal(UnitHandle.EntityHandle, TaskTag);
 }
 
 bool UMassUnitBehaviorIntegration::ExecuteBTTaskInternal(FMassUnitEntityHandle Entity, FGameplayTag TaskTag)
 {
-    // Skip if not initialized
-    if (!GASIntegration)
-    {
-        return false;
-    }
-    
-    // Get behavior tree component
-    UBehaviorTreeComponent* BTComp = EntityBTMap.FindRef(Entity);
-    if (!BTComp)
-    {
-        return false;
-    }
-    
-    // In a real implementation, we would find and execute the task by tag
-    // For this example, we'll just log that we're executing a task
-    UE_LOG(LogTemp, Log, TEXT("MassUnitBehaviorIntegration: Executing BT task %s for entity %s"), 
-        *TaskTag.ToString(), *Entity.ToString());
-    
-    // Update blackboard from entity data
-    UpdateBlackboardFromEntity(Entity);
-    
-    return true;
+	UBlackboardComponent* Blackboard = EntityBBMap.FindRef(Entity);
+	if (!Blackboard || !TaskTag.IsValid() || Blackboard->GetKeyID(TEXT("RequestedTask")) == FBlackboard::InvalidKey)
+	{
+		return false;
+	}
+	Blackboard->SetValueAsName(TEXT("RequestedTask"), TaskTag.GetTagName());
+	return true;
 }
 
 UBehaviorTreeComponent* UMassUnitBehaviorIntegration::CreateBehaviorTreeForEntity(FMassUnitEntityHandle Entity, UBehaviorTree* BehaviorTree, UBlackboardData* BlackboardData)
 {
-    // Skip if already exists
-    if (UBehaviorTreeComponent* ExistingBTComp = EntityBTMap.FindRef(Entity))
-    {
-        return ExistingBTComp;
-    }
-    
-    // Create blackboard component
-    UBlackboardComponent* BBComp = NewObject<UBlackboardComponent>(this);
-    if (!BBComp)
-    {
-        UE_LOG(LogTemp, Error, TEXT("MassUnitBehaviorIntegration: Failed to create blackboard component"));
-        return nullptr;
-    }
-    
-    // Keep blackboard alive
-    BBComp->AddToRoot();
-    
-    // Initialize blackboard
-    BBComp->InitializeBlackboard(*BlackboardData);
-    
-    // Create behavior tree component
-    UBehaviorTreeComponent* BTComp = NewObject<UBehaviorTreeComponent>(this);
-    if (!BTComp)
-    {
-        UE_LOG(LogTemp, Error, TEXT("MassUnitBehaviorIntegration: Failed to create behavior tree component"));
-        BBComp->RemoveFromRoot();
-        return nullptr;
-    }
-    
-    // Keep behavior tree alive
-    BTComp->AddToRoot();
-    
-        // Set blackboard (plugin independence, cannot assign protected member)
-        // BTComp->BlackboardComp = BBComp; // Protected member, cannot assign directly
-    
-    // Add to maps
-    EntityBTMap.Add(Entity, BTComp);
-    EntityBBMap.Add(Entity, BBComp);
-    
-    // Initialize blackboard with entity data
-    UpdateBlackboardFromEntity(Entity);
-    
-    return BTComp;
+	UMassEntitySubsystem* EntitySubsystem = GASIntegration ? GASIntegration->GetEntitySubsystem() : nullptr;
+	UWorld* World = EntitySubsystem ? EntitySubsystem->GetWorld() : nullptr;
+	if (!World)
+	{
+		return nullptr;
+	}
+
+	UBlackboardComponent* Blackboard = NewObject<UBlackboardComponent>(World);
+	if (!Blackboard)
+	{
+		return nullptr;
+	}
+	Blackboard->RegisterComponentWithWorld(World);
+	if (!Blackboard->InitializeBlackboard(*BlackboardData))
+	{
+		Blackboard->DestroyComponent();
+		return nullptr;
+	}
+
+	UBehaviorTreeComponent* BehaviorComponent = NewObject<UBehaviorTreeComponent>(World);
+	if (!BehaviorComponent)
+	{
+		Blackboard->DestroyComponent();
+		return nullptr;
+	}
+	BehaviorComponent->RegisterComponentWithWorld(World);
+	BehaviorComponent->CacheBlackboardComponent(Blackboard);
+	EntityBBMap.Add(Entity, Blackboard);
+	EntityBTMap.Add(Entity, BehaviorComponent);
+	UpdateBlackboardFromEntity(Entity);
+	return BehaviorComponent;
+}
+
+void UMassUnitBehaviorIntegration::RemoveBehaviorTreeForEntity(FMassUnitEntityHandle Entity)
+{
+	if (UBehaviorTreeComponent* BehaviorComponent = EntityBTMap.FindRef(Entity))
+	{
+		BehaviorComponent->StopTree(EBTStopMode::Safe);
+		BehaviorComponent->DestroyComponent();
+	}
+	if (UBlackboardComponent* Blackboard = EntityBBMap.FindRef(Entity))
+	{
+		Blackboard->DestroyComponent();
+	}
+	EntityBTMap.Remove(Entity);
+	EntityBBMap.Remove(Entity);
 }
 
 void UMassUnitBehaviorIntegration::UpdateBlackboardFromEntity(FMassUnitEntityHandle Entity)
 {
-    // Skip if not initialized
-    if (!GASIntegration)
-    {
-        return;
-    }
-    
-    // Get blackboard component
-    UBlackboardComponent* BBComp = EntityBBMap.FindRef(Entity);
-    if (!BBComp)
-    {
-        return;
-    }
-    
-    // Get entity subsystem from GAS integration
-    UMassUnitEntitySubsystem* EntitySubsystem = nullptr;
-    // Plugin independence: skip GAS interface lookup
-    
-    // Skip if no entity subsystem
-    if (!EntitySubsystem)
-    {
-        return;
-    }
-    
-    // Get entity manager
-    FMassUnitEntityManagerFallback& EntityManager = *EntitySubsystem->GetMutableUnitEntityManager();
-    
-    // Skip if entity is invalid
-    if (!Entity.IsValid() || !EntityManager.IsEntityValid(Entity))
-    {
-        return;
-    }
-    
-    // Get entity view
-    FMassUnitEntityView EntityView(EntityManager, Entity);
-    
-    // Update blackboard with entity data
-    
-    // Position
-    if (EntityView.HasFragmentData<FMassUnitTransformFragment>())
-    {
-    const FMassUnitTransformFragment& TransformFragment = EntityView.GetFragmentData<FMassUnitTransformFragment>();
-        BBComp->SetValueAsVector("Position", TransformFragment.GetTransform().GetLocation());
-    }
-    
-    // State
-    if (EntityView.HasFragmentData<FMassUnitStateFragment>())
-    {
-        const FMassUnitStateFragment& StateFragment = EntityView.GetFragmentData<FMassUnitStateFragment>();
-        BBComp->SetValueAsEnum("State", static_cast<uint8>(StateFragment.CurrentState));
-        BBComp->SetValueAsFloat("StateTime", StateFragment.StateTime);
-        BBComp->SetValueAsName("UnitType", FName(*StateFragment.UnitType.ToString()));
-        BBComp->SetValueAsInt("UnitLevel", StateFragment.UnitLevel);
-    }
-    
-    // Target
-    if (EntityView.HasFragmentData<FMassUnitTargetFragment>())
-    {
-        const FMassUnitTargetFragment& TargetFragment = EntityView.GetFragmentData<FMassUnitTargetFragment>();
-        BBComp->SetValueAsVector("TargetLocation", TargetFragment.TargetLocation);
-        BBComp->SetValueAsFloat("TargetPriority", TargetFragment.TargetPriority);
-        BBComp->SetValueAsBool("HasTarget", TargetFragment.HasTarget());
-    }
-    
-    // Team
-    if (EntityView.HasFragmentData<FMassUnitTeamFragment>())
-    {
-        const FMassUnitTeamFragment& TeamFragment = EntityView.GetFragmentData<FMassUnitTeamFragment>();
-        BBComp->SetValueAsInt("TeamID", TeamFragment.TeamID);
-        BBComp->SetValueAsName("TeamFaction", FName(*TeamFragment.TeamFaction.ToString()));
-    }
-    
-    // Attributes
-    if (EntityView.HasFragmentData<FMassUnitAbilityFragment>())
-    {
-        const FMassUnitAbilityFragment& AbilityFragment = EntityView.GetFragmentData<FMassUnitAbilityFragment>();
-        
-    // ...existing code...
-    }
+	UBlackboardComponent* Blackboard = EntityBBMap.FindRef(Entity);
+	UMassEntitySubsystem* EntitySubsystem = GASIntegration ? GASIntegration->GetEntitySubsystem() : nullptr;
+	if (!Blackboard || !EntitySubsystem || !IsEntityValid(Entity))
+	{
+		return;
+	}
+
+	const FMassEntityManager& EntityManager = EntitySubsystem->GetEntityManager();
+	const FMassEntityHandle NativeHandle = Entity.ToMassEntityHandle();
+	if (const FMassUnitTransformFragment* Transform = EntityManager.GetFragmentDataPtr<FMassUnitTransformFragment>(NativeHandle))
+	{
+		if (Blackboard->GetKeyID(TEXT("Position")) != FBlackboard::InvalidKey)
+		{
+			Blackboard->SetValueAsVector(TEXT("Position"), Transform->GetTransform().GetLocation());
+		}
+	}
+	if (const FMassUnitStateFragment* State = EntityManager.GetFragmentDataPtr<FMassUnitStateFragment>(NativeHandle))
+	{
+		if (Blackboard->GetKeyID(TEXT("State")) != FBlackboard::InvalidKey) Blackboard->SetValueAsEnum(TEXT("State"), static_cast<uint8>(State->CurrentState));
+		if (Blackboard->GetKeyID(TEXT("StateTime")) != FBlackboard::InvalidKey) Blackboard->SetValueAsFloat(TEXT("StateTime"), State->StateTime);
+		if (Blackboard->GetKeyID(TEXT("UnitLevel")) != FBlackboard::InvalidKey) Blackboard->SetValueAsInt(TEXT("UnitLevel"), State->UnitLevel);
+		if (Blackboard->GetKeyID(TEXT("Health")) != FBlackboard::InvalidKey) Blackboard->SetValueAsFloat(TEXT("Health"), State->Health);
+	}
+	if (const FMassUnitTargetFragment* Target = EntityManager.GetFragmentDataPtr<FMassUnitTargetFragment>(NativeHandle))
+	{
+		if (Blackboard->GetKeyID(TEXT("TargetLocation")) != FBlackboard::InvalidKey) Blackboard->SetValueAsVector(TEXT("TargetLocation"), Target->TargetLocation);
+		if (Blackboard->GetKeyID(TEXT("TargetPriority")) != FBlackboard::InvalidKey) Blackboard->SetValueAsFloat(TEXT("TargetPriority"), Target->TargetPriority);
+		if (Blackboard->GetKeyID(TEXT("HasTarget")) != FBlackboard::InvalidKey) Blackboard->SetValueAsBool(TEXT("HasTarget"), Target->HasTarget());
+	}
+	if (const FMassUnitTeamFragment* Team = EntityManager.GetFragmentDataPtr<FMassUnitTeamFragment>(NativeHandle))
+	{
+		if (Blackboard->GetKeyID(TEXT("TeamID")) != FBlackboard::InvalidKey) Blackboard->SetValueAsInt(TEXT("TeamID"), Team->TeamID);
+	}
 }
 
 void UMassUnitBehaviorIntegration::UpdateEntityFromBlackboard(FMassUnitEntityHandle Entity)
 {
-    // Skip if not initialized
-    if (!GASIntegration)
-    {
-        return;
-    }
-    
-    // Get blackboard component
-    UBlackboardComponent* BBComp = EntityBBMap.FindRef(Entity);
-    if (!BBComp)
-    {
-        return;
-    }
-    
-    // Get entity subsystem from GAS integration
-    UMassUnitEntitySubsystem* EntitySubsystem = nullptr;
-        // Skipped: GAS interface lookup and Execute_GetMassUnitEntitySubsystem
-    
-    // Skip if no entity subsystem
-    if (!EntitySubsystem)
-    {
-        return;
-    }
-    
-    // Get entity manager
-    FMassUnitEntityManagerFallback& EntityManager = *EntitySubsystem->GetMutableUnitEntityManager();
-    
-    // Skip if entity is invalid
-    if (!Entity.IsValid() || !EntityManager.IsEntityValid(Entity))
-    {
-        return;
-    }
-    
-    // Get entity view
-    FMassUnitEntityView EntityView(EntityManager, Entity);
-    
-    // Update entity data from blackboard
-    
-    // Target
-    if (EntityView.HasFragmentData<FMassUnitTargetFragment>())
-    {
-        FMassUnitTargetFragment& TargetFragment = EntityView.GetFragmentData<FMassUnitTargetFragment>();
-        TargetFragment.TargetLocation = BBComp->GetValueAsVector("TargetLocation");
-        TargetFragment.TargetPriority = BBComp->GetValueAsFloat("TargetPriority");
-    }
-    
-    // State
-    if (EntityView.HasFragmentData<FMassUnitStateFragment>())
-    {
-        FMassUnitStateFragment& StateFragment = EntityView.GetFragmentData<FMassUnitStateFragment>();
-        StateFragment.CurrentState = static_cast<EMassUnitState>(BBComp->GetValueAsEnum("State"));
-    }
+	UBlackboardComponent* Blackboard = EntityBBMap.FindRef(Entity);
+	UMassEntitySubsystem* EntitySubsystem = GASIntegration ? GASIntegration->GetEntitySubsystem() : nullptr;
+	if (!Blackboard || !EntitySubsystem || !IsEntityValid(Entity))
+	{
+		return;
+	}
+
+	FMassEntityManager& EntityManager = EntitySubsystem->GetMutableEntityManager();
+	const FMassEntityHandle NativeHandle = Entity.ToMassEntityHandle();
+	if (FMassUnitTargetFragment* Target = EntityManager.GetFragmentDataPtr<FMassUnitTargetFragment>(NativeHandle))
+	{
+		if (Blackboard->GetKeyID(TEXT("ClearTarget")) != FBlackboard::InvalidKey && Blackboard->GetValueAsBool(TEXT("ClearTarget")))
+		{
+			Target->Clear();
+			Blackboard->SetValueAsBool(TEXT("ClearTarget"), false);
+		}
+		else if (Blackboard->GetKeyID(TEXT("HasRequestedTarget")) != FBlackboard::InvalidKey
+			&& Blackboard->GetValueAsBool(TEXT("HasRequestedTarget"))
+			&& Blackboard->GetKeyID(TEXT("RequestedTargetLocation")) != FBlackboard::InvalidKey)
+		{
+			Target->TargetEntity.Invalidate();
+			Target->TargetLocation = Blackboard->GetValueAsVector(TEXT("RequestedTargetLocation"));
+			Target->bHasTargetLocation = true;
+			if (Blackboard->GetKeyID(TEXT("RequestedTargetPriority")) != FBlackboard::InvalidKey)
+			{
+				Target->TargetPriority = Blackboard->GetValueAsFloat(TEXT("RequestedTargetPriority"));
+			}
+		}
+	}
+	if (FMassUnitStateFragment* State = EntityManager.GetFragmentDataPtr<FMassUnitStateFragment>(NativeHandle))
+	{
+		if (Blackboard->GetKeyID(TEXT("RequestedState")) != FBlackboard::InvalidKey)
+		{
+			State->CurrentState = static_cast<EMassUnitState>(Blackboard->GetValueAsEnum(TEXT("RequestedState")));
+		}
+	}
+}
+
+bool UMassUnitBehaviorIntegration::IsEntityValid(FMassUnitEntityHandle Entity) const
+{
+	const UMassEntitySubsystem* EntitySubsystem = GASIntegration ? GASIntegration->GetEntitySubsystem() : nullptr;
+	return EntitySubsystem && Entity.IsValid()
+		&& EntitySubsystem->GetEntityManager().IsEntityValid(Entity.ToMassEntityHandle());
 }

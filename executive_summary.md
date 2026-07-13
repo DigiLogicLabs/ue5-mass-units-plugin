@@ -1,5 +1,7 @@
 # UE5 Large-Scale Unit System Plugin - Executive Summary
 
+> Archived concept document from before the native Mass 1.1 implementation. See `README.md` and `OutOfTheBoxReadinessReport.md` for current capabilities and validation.
+
 ## Project Overview
 
 This document provides a comprehensive solution for implementing a high-performance large-scale unit system plugin for Unreal Engine 5.6. The plugin is designed to enable the rendering and simulation of thousands of units on screen simultaneously, with seamless integration with the Gameplay Ability System (GAS) and GASCompanion.

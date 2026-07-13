@@ -1,6 +1,7 @@
 // Copyright Digi Logic Labs LLC. All Rights Reserved.
 
 #include "Gameplay/UnitGameplayEventSystem.h"
+#include "Core/MassUnitSystemRuntime.h"
 #include "GameplayEffectTypes.h"
 
 UUnitGameplayEventSystem::UUnitGameplayEventSystem()
@@ -13,7 +14,7 @@ UUnitGameplayEventSystem::~UUnitGameplayEventSystem()
 
 void UUnitGameplayEventSystem::Initialize()
 {
-    UE_LOG(LogTemp, Log, TEXT("UnitGameplayEventSystem: Initialized"));
+    UE_LOG(LogMassUnitSystem, Verbose, TEXT("Unit gameplay event system initialized"));
 }
 
 void UUnitGameplayEventSystem::Deinitialize()
@@ -21,7 +22,7 @@ void UUnitGameplayEventSystem::Deinitialize()
     // Clear all listeners
     EventListeners.Empty();
     
-    UE_LOG(LogTemp, Log, TEXT("UnitGameplayEventSystem: Deinitialized"));
+    UE_LOG(LogMassUnitSystem, Verbose, TEXT("Unit gameplay event system deinitialized"));
 }
 
 void UUnitGameplayEventSystem::DispatchEvent(FGameplayTag EventTag, FMassUnitHandle UnitHandle, const FGameplayEventData& EventData)
@@ -41,19 +42,18 @@ void UUnitGameplayEventSystem::DispatchEventInternal(FGameplayTag EventTag, FMas
     if (Listeners)
     {
         Listeners->Broadcast(EventTag, Entity, EventData);
-        UE_LOG(LogTemp, Verbose, TEXT("UnitGameplayEventSystem: Dispatched event %s for entity %s"), *EventTag.ToString(), *Entity.ToString());
+        UE_LOG(LogMassUnitSystem, Verbose, TEXT("Dispatched %s for %s"), *EventTag.ToString(), *Entity.ToString());
     }
 }
 
-void UUnitGameplayEventSystem::RegisterListener(FGameplayTag EventTag, FOnGameplayEvent::FDelegate Listener)
+FDelegateHandle UUnitGameplayEventSystem::RegisterListener(FGameplayTag EventTag, FOnGameplayEvent::FDelegate Listener)
 {
-    if (!EventTag.IsValid())
+    if (!EventTag.IsValid() || !Listener.IsBound())
     {
-        return;
+        return {};
     }
     FOnGameplayEvent& Listeners = EventListeners.FindOrAdd(EventTag);
-    Listeners.Add(Listener);
-    UE_LOG(LogTemp, Log, TEXT("UnitGameplayEventSystem: Registered listener for event %s"), *EventTag.ToString());
+    return Listeners.Add(MoveTemp(Listener));
 }
 
 void UUnitGameplayEventSystem::UnregisterListener(FGameplayTag EventTag, FDelegateHandle ListenerHandle)
@@ -66,31 +66,9 @@ void UUnitGameplayEventSystem::UnregisterListener(FGameplayTag EventTag, FDelega
     if (Listeners)
     {
         Listeners->Remove(ListenerHandle);
-        UE_LOG(LogTemp, Log, TEXT("UnitGameplayEventSystem: Unregistered listener for event %s"), *EventTag.ToString());
-    }
-}
-
-void UUnitGameplayEventSystem::RegisterListener(FGameplayTag EventTag, const FOnGameplayEvent& Listener)
-{
-    if (!EventTag.IsValid())
-    {
-        return;
-    }
-    FOnGameplayEvent& Listeners = EventListeners.FindOrAdd(EventTag);
-    Listeners.Add(Listener);
-    UE_LOG(LogTemp, Log, TEXT("UnitGameplayEventSystem: Registered listener for event %s"), *EventTag.ToString());
-}
-
-void UUnitGameplayEventSystem::UnregisterListener(FGameplayTag EventTag, const FOnGameplayEvent& Listener)
-{
-    if (!EventTag.IsValid())
-    {
-        return;
-    }
-    FOnGameplayEvent* Listeners = EventListeners.Find(EventTag);
-    if (Listeners)
-    {
-        Listeners->Remove(Listener);
-        UE_LOG(LogTemp, Log, TEXT("UnitGameplayEventSystem: Unregistered listener for event %s"), *EventTag.ToString());
+        if (!Listeners->IsBound())
+        {
+            EventListeners.Remove(EventTag);
+        }
     }
 }

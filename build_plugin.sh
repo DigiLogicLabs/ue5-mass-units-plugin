@@ -1,35 +1,46 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
-# UE5 Mass Unit System Plugin - Linux/macOS Build Script
-# This script uses Unreal Automation Tool (UAT) to build the plugin.
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_FILE="$SCRIPT_DIR/MassUnitSystem.uplugin"
+ENGINE_ROOT="${UE_ENGINE_PATH:-${UE_PATH:-}}"
+OUTPUT_PATH="${1:-$SCRIPT_DIR/Build/Package}"
 
-# Default UE_PATH - Update this to your Unreal Engine installation path
-# Example: /home/user/UnrealEngine/Engine
-UE_PATH="/opt/unreal-engine/Engine"
+case "$(uname -s)" in
+    Darwin) DEFAULT_PLATFORM="Mac" ;;
+    *) DEFAULT_PLATFORM="Linux" ;;
+esac
 
-# Check if UE_PATH exists
-if [ ! -d "$UE_PATH" ]; then
-    echo "Error: Unreal Engine path not found at $UE_PATH"
-    echo "Please update the UE_PATH variable in this script."
+TARGET_PLATFORM="${2:-$DEFAULT_PLATFORM}"
+BUILD_CONFIG="${3:-Development}"
+
+if [[ -z "$ENGINE_ROOT" ]]; then
+    echo "Error: set UE_ENGINE_PATH to your Unreal Engine root." >&2
     exit 1
 fi
 
-UAT_PATH="$UE_PATH/Build/BatchFiles/RunUAT.sh"
-PLUGIN_PATH="$(pwd)/MassUnitSystem.uplugin"
-OUTPUT_PATH="$(pwd)/Build/Plugin"
-
-echo "Building Mass Unit System Plugin..."
-echo "UE Path: $UE_PATH"
-echo "Plugin: $PLUGIN_PATH"
-echo "Output: $OUTPUT_PATH"
-
-# Run UAT to build the plugin
-"$UAT_PATH" BuildPlugin -Plugin="$PLUGIN_PATH" -Package="$OUTPUT_PATH" -Rocket
-
-if [ $? -eq 0 ]; then
-    echo "Build Successful!"
-    echo "Built plugin located at: $OUTPUT_PATH"
+if [[ -x "$ENGINE_ROOT/Engine/Build/BatchFiles/RunUAT.sh" ]]; then
+    UAT="$ENGINE_ROOT/Engine/Build/BatchFiles/RunUAT.sh"
+elif [[ -x "$ENGINE_ROOT/Build/BatchFiles/RunUAT.sh" ]]; then
+    UAT="$ENGINE_ROOT/Build/BatchFiles/RunUAT.sh"
 else
-    echo "Build Failed!"
+    echo "Error: RunUAT.sh was not found below '$ENGINE_ROOT'." >&2
     exit 1
 fi
+
+if [[ ! -f "$PLUGIN_FILE" ]]; then
+    echo "Error: plugin descriptor was not found at '$PLUGIN_FILE'." >&2
+    exit 1
+fi
+
+echo "Building: $PLUGIN_FILE"
+echo "Target: $TARGET_PLATFORM $BUILD_CONFIG"
+echo "Package: $OUTPUT_PATH"
+
+"$UAT" BuildPlugin \
+    -Plugin="$PLUGIN_FILE" \
+    -Package="$OUTPUT_PATH" \
+    -TargetPlatforms="$TARGET_PLATFORM" \
+    -Configuration="$BUILD_CONFIG"
+
+echo "Build completed successfully: $OUTPUT_PATH"

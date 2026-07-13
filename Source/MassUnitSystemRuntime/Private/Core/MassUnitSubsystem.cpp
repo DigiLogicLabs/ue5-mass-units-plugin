@@ -1,299 +1,160 @@
 // Copyright Digi Logic Labs LLC. All Rights Reserved.
 
 #include "Core/MassUnitSubsystem.h"
-#include "Entity/MassUnitEntityManager.h"
 
-// Include MassEntity types or fallback
-#if WITH_MASSENTITY
+#include "Config/MassUnitSystemSettings.h"
+#include "Core/MassUnitSystemRuntime.h"
+#include "Engine/Engine.h"
+#include "Engine/World.h"
+#include "Entity/MassUnitEntityManager.h"
+#include "Gameplay/GASUnitIntegration.h"
+#include "Gameplay/MassUnitBehaviorIntegration.h"
+#include "Gameplay/UnitGameplayEventSystem.h"
 #include "MassEntitySubsystem.h"
-#endif
 #include "Navigation/FormationSystem.h"
 #include "Navigation/MassUnitNavigationSystem.h"
 #include "Visual/NiagaraUnitSystem.h"
 #include "Visual/UnitMeshPool.h"
-#include "Gameplay/GASUnitIntegration.h"
-#include "Gameplay/MassUnitBehaviorIntegration.h"
-#include "Gameplay/UnitGameplayEventSystem.h"
-#include "Engine/Engine.h"
-#include "Engine/World.h"
-#include "TimerManager.h"
-
-UMassUnitSubsystem::UMassUnitSubsystem()
-    : EntitySubsystem(nullptr)
-    , UnitManager(nullptr)
-    , FormationSystem(nullptr)
-    , NavigationSystem(nullptr)
-    , NiagaraSystem(nullptr)
-    , MeshPool(nullptr)
-    , GASIntegration(nullptr)
-    , BehaviorIntegration(nullptr)
-    , GameplayEventSystem(nullptr)
-{
-}
-
-UMassUnitSubsystem::~UMassUnitSubsystem()
-{
-}
 
 void UMassUnitSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
-    // Get the Mass Entity Subsystem
-#if WITH_MASSENTITY
-    EntitySubsystem = Collection.InitializeDependency<UMassUnitEntitySubsystem>();
-#else
-    EntitySubsystem = NewObject<UMassUnitEntitySubsystem>(this);
-#endif
-    if (!EntitySubsystem)
-    {
-        UE_LOG(LogTemp, Error, TEXT("MassUnitSubsystem: Failed to get MassEntitySubsystem"));
-        return;
-    }
-    
-    // Get the world
-    UWorld* World = GetWorld();
-    if (!World)
-    {
-        UE_LOG(LogTemp, Error, TEXT("MassUnitSubsystem: Failed to get World"));
-        return;
-    }
-    
-    // Create the Unit Manager
-    UnitManager = NewObject<UMassUnitEntityManager>(this);
-    if (UnitManager)
-    {
-        UnitManager->Initialize(EntitySubsystem);
-    }
-    else
-    {
-        UE_LOG(LogTemp, Error, TEXT("MassUnitSubsystem: Failed to create UnitManager"));
-    }
-    
-    // Create the Formation System
-    FormationSystem = NewObject<UFormationSystem>(this);
-    if (FormationSystem)
-    {
-        FormationSystem->Initialize(EntitySubsystem);
-    }
-    else
-    {
-        UE_LOG(LogTemp, Error, TEXT("MassUnitSubsystem: Failed to create FormationSystem"));
-    }
-    
-    // Create the Navigation System
-    NavigationSystem = NewObject<UMassUnitNavigationSystem>(this);
-    if (NavigationSystem)
-    {
-        NavigationSystem->Initialize(World, EntitySubsystem);
-    }
-    else
-    {
-        UE_LOG(LogTemp, Error, TEXT("MassUnitSubsystem: Failed to create NavigationSystem"));
-    }
-    
-    // Create the Niagara System
-    NiagaraSystem = NewObject<UNiagaraUnitSystem>(this);
-    if (NiagaraSystem)
-    {
-        NiagaraSystem->Initialize(World, EntitySubsystem);
-    }
-    else
-    {
-        UE_LOG(LogTemp, Error, TEXT("MassUnitSubsystem: Failed to create NiagaraSystem"));
-    }
-    
-    // Create the Mesh Pool
-    MeshPool = NewObject<UUnitMeshPool>(this);
-    if (MeshPool)
-    {
-        MeshPool->Initialize(World, EntitySubsystem, 100); // Default pool size of 100
-    }
-    else
-    {
-        UE_LOG(LogTemp, Error, TEXT("MassUnitSubsystem: Failed to create MeshPool"));
-    }
-    
-    // Create the GAS Integration
-    GASIntegration = NewObject<UGASUnitIntegration>(this);
-    if (GASIntegration)
-    {
-        GASIntegration->Initialize(EntitySubsystem);
-    }
-    else
-    {
-        UE_LOG(LogTemp, Error, TEXT("MassUnitSubsystem: Failed to create GASIntegration"));
-    }
-    
-    // Create the Behavior Integration
-    BehaviorIntegration = NewObject<UMassUnitBehaviorIntegration>(this);
-    if (BehaviorIntegration && GASIntegration)
-    {
-        BehaviorIntegration->Initialize(GASIntegration);
-    }
-    else
-    {
-        UE_LOG(LogTemp, Error, TEXT("MassUnitSubsystem: Failed to create BehaviorIntegration"));
-    }
-    
-    // Create the Gameplay Event System
-    GameplayEventSystem = NewObject<UUnitGameplayEventSystem>(this);
-    if (GameplayEventSystem)
-    {
-        GameplayEventSystem->Initialize();
-    }
-    else
-    {
-        UE_LOG(LogTemp, Error, TEXT("MassUnitSubsystem: Failed to create GameplayEventSystem"));
-    }
-    
-    // Register tick function
-    if (UGameInstance* GameInstance = GetGameInstance())
-    {
-    GameInstance->GetTimerManager().SetTimerForNextTick(FTimerDelegate::CreateUObject(this, &UMassUnitSubsystem::Tick, 0.0f));
-    }
-    
-    UE_LOG(LogTemp, Log, TEXT("MassUnitSubsystem: Initialized"));
+	Super::Initialize(Collection);
+	EntitySubsystem = Collection.InitializeDependency<UMassEntitySubsystem>();
+	if (!EntitySubsystem || !GetWorld())
+	{
+		UE_LOG(LogMassUnitSystem, Error, TEXT("Mass Unit subsystem could not resolve its world Mass entity subsystem"));
+		return;
+	}
+
+	UnitManager = NewObject<UMassUnitEntityManager>(this);
+	UnitManager->Initialize(EntitySubsystem);
+
+	FormationSystem = NewObject<UFormationSystem>(this);
+	FormationSystem->Initialize(EntitySubsystem);
+
+	NavigationSystem = NewObject<UMassUnitNavigationSystem>(this);
+	NavigationSystem->Initialize(GetWorld(), EntitySubsystem);
+
+	NiagaraSystem = NewObject<UNiagaraUnitSystem>(this);
+	NiagaraSystem->Initialize(GetWorld(), EntitySubsystem);
+
+	MeshPool = NewObject<UUnitMeshPool>(this);
+	const UMassUnitSystemSettings* Settings = GetDefault<UMassUnitSystemSettings>();
+	MeshPool->Initialize(GetWorld(), EntitySubsystem, Settings ? Settings->MaxSkeletalMeshUnits : 100);
+
+	GASIntegration = NewObject<UGASUnitIntegration>(this);
+	GASIntegration->Initialize(EntitySubsystem);
+
+	BehaviorIntegration = NewObject<UMassUnitBehaviorIntegration>(this);
+	BehaviorIntegration->Initialize(GASIntegration);
+
+	GameplayEventSystem = NewObject<UUnitGameplayEventSystem>(this);
+	GameplayEventSystem->Initialize();
+
+	UE_LOG(LogMassUnitSystem, Log, TEXT("Mass Unit subsystem initialized for %s"), *GetWorld()->GetName());
 }
 
 void UMassUnitSubsystem::Deinitialize()
 {
-    // Unregister tick function
-    if (UGameInstance* GameInstance = GetGameInstance())
-    {
-        GameInstance->GetTimerManager().ClearTimer(TickDelegateHandle);
-    }
-    
-    // Clean up Gameplay Event System
-    if (GameplayEventSystem)
-    {
-        GameplayEventSystem->Deinitialize();
-        GameplayEventSystem = nullptr;
-    }
-    
-    // Clean up Behavior Integration
-    if (BehaviorIntegration)
-    {
-        BehaviorIntegration->Deinitialize();
-        BehaviorIntegration = nullptr;
-    }
-    
-    // Clean up GAS Integration
-    if (GASIntegration)
-    {
-        GASIntegration->Deinitialize();
-        GASIntegration = nullptr;
-    }
-    
-    // Clean up Mesh Pool
-    if (MeshPool)
-    {
-        MeshPool->Deinitialize();
-        MeshPool = nullptr;
-    }
-    
-    // Clean up Niagara System
-    if (NiagaraSystem)
-    {
-        NiagaraSystem->Deinitialize();
-        NiagaraSystem = nullptr;
-    }
-    
-    // Clean up Navigation System
-    if (NavigationSystem)
-    {
-        NavigationSystem->Deinitialize();
-        NavigationSystem = nullptr;
-    }
-    
-    // Clean up Formation System
-    if (FormationSystem)
-    {
-        FormationSystem->Deinitialize();
-        FormationSystem = nullptr;
-    }
-    
-    // Clean up Unit Manager
-    if (UnitManager)
-    {
-        UnitManager = nullptr;
-    }
-    
-    // Clean up Entity Subsystem reference
-    EntitySubsystem = nullptr;
-    
-    UE_LOG(LogTemp, Log, TEXT("MassUnitSubsystem: Deinitialized"));
+	if (GameplayEventSystem)
+	{
+		GameplayEventSystem->Deinitialize();
+	}
+	if (BehaviorIntegration)
+	{
+		BehaviorIntegration->Deinitialize();
+	}
+	if (GASIntegration)
+	{
+		GASIntegration->Deinitialize();
+	}
+	if (MeshPool)
+	{
+		MeshPool->Deinitialize();
+	}
+	if (NiagaraSystem)
+	{
+		NiagaraSystem->Deinitialize();
+	}
+	if (NavigationSystem)
+	{
+		NavigationSystem->Deinitialize();
+	}
+	if (FormationSystem)
+	{
+		FormationSystem->Deinitialize();
+	}
+	if (UnitManager)
+	{
+		UnitManager->Deinitialize();
+	}
+
+	GameplayEventSystem = nullptr;
+	BehaviorIntegration = nullptr;
+	GASIntegration = nullptr;
+	MeshPool = nullptr;
+	NiagaraSystem = nullptr;
+	NavigationSystem = nullptr;
+	FormationSystem = nullptr;
+	UnitManager = nullptr;
+	EntitySubsystem = nullptr;
+
+	Super::Deinitialize();
 }
 
 void UMassUnitSubsystem::Tick(float DeltaTime)
 {
-    // Register for next tick
-    if (UGameInstance* GameInstance = GetGameInstance())
-    {
-    GameInstance->GetTimerManager().SetTimerForNextTick(FTimerDelegate::CreateUObject(this, &UMassUnitSubsystem::Tick, 0.0f));
-    }
-    
-    // Update Formation System
-    if (FormationSystem)
-    {
-        FormationSystem->Tick(DeltaTime);
-    }
-    
-    // Process navigation path requests
-    if (NavigationSystem)
-    {
-        NavigationSystem->ProcessPathRequests();
-    }
-    
-    // Update unit visuals
-    if (NiagaraSystem && UnitManager)
-    {
-        // Get all units
-    TArray<FMassUnitEntityHandle> AllUnits;
-        for (auto& Pair : UnitManager->GetUnitTypeMap())
-        {
-            AllUnits.Append(Pair.Value);
-        }
-        
-        // Update visuals for units
-    NiagaraSystem->UpdateUnitVisuals(AllUnits);
-    }
+	if (!UnitManager)
+	{
+		return;
+	}
+	UnitManager->PruneInvalidUnits();
+
+	if (FormationSystem)
+	{
+		FormationSystem->Tick(DeltaTime);
+	}
+	if (NavigationSystem)
+	{
+		NavigationSystem->ProcessPathRequests();
+	}
+	if (BehaviorIntegration)
+	{
+		BehaviorIntegration->Tick(DeltaTime);
+	}
+
+	const TArray<FMassUnitEntityHandle> Units = UnitManager->GetAllUnitsInternal();
+	if (MeshPool)
+	{
+		MeshPool->UpdateUnitMeshes(Units);
+	}
+	if (NiagaraSystem)
+	{
+		NiagaraSystem->UpdateUnitVisuals(Units);
+	}
 }
 
-UMassUnitEntityManager* UMassUnitSubsystem::GetUnitManager() const
+TStatId UMassUnitSubsystem::GetStatId() const
 {
-    return UnitManager;
+	RETURN_QUICK_DECLARE_CYCLE_STAT(UMassUnitSubsystem, STATGROUP_Tickables);
 }
 
-UFormationSystem* UMassUnitSubsystem::GetFormationSystem() const
+bool UMassUnitSubsystem::DoesSupportWorldType(EWorldType::Type WorldType) const
 {
-    return FormationSystem;
+	return WorldType == EWorldType::Game
+		|| WorldType == EWorldType::PIE
+		|| WorldType == EWorldType::GamePreview;
 }
 
-UMassUnitNavigationSystem* UMassUnitSubsystem::GetNavigationSystem() const
+UMassUnitSubsystem* UMassUnitSubsystem::Get(const UObject* WorldContextObject)
 {
-    return NavigationSystem;
-}
-
-UNiagaraUnitSystem* UMassUnitSubsystem::GetNiagaraSystem() const
-{
-    return NiagaraSystem;
-}
-
-UUnitMeshPool* UMassUnitSubsystem::GetMeshPool() const
-{
-    return MeshPool;
-}
-
-UGASUnitIntegration* UMassUnitSubsystem::GetGASIntegration() const
-{
-    return GASIntegration;
-}
-
-UMassUnitBehaviorIntegration* UMassUnitSubsystem::GetBehaviorIntegration() const
-{
-    return BehaviorIntegration;
-}
-
-UUnitGameplayEventSystem* UMassUnitSubsystem::GetGameplayEventSystem() const
-{
-    return GameplayEventSystem;
+	if (!WorldContextObject || !GEngine)
+	{
+		return nullptr;
+	}
+	if (UWorld* World = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::ReturnNull))
+	{
+		return World->GetSubsystem<UMassUnitSubsystem>();
+	}
+	return nullptr;
 }
