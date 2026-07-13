@@ -17,6 +17,7 @@
 #include "Entity/MassUnitMovementProcessor.h"
 #include "Entity/MassUnitSpawner.h"
 #include "Entity/UnitTemplate.h"
+#include "Gameplay/MassUnitCrowdSystem.h"
 #include "Kismet/GameplayStatics.h"
 #include "MassEntityManager.h"
 #include "MassEntitySubsystem.h"
@@ -122,6 +123,14 @@ bool FMassUnitNativeLifecycleTest::RunTest(const FString& Parameters)
 	UnitManager->GetUnitTransform(UnitB, UnmovedTransformB);
 	TestTrue(TEXT("Requested unit moves toward its destination"), MovedTransformA.GetLocation().X > TransformA.GetLocation().X);
 	TestTrue(TEXT("Unrequested unit does not share movement fragments"), UnmovedTransformB.GetLocation().Equals(TransformB.GetLocation()));
+	TestTrue(TEXT("A path can be queued before explicit cancellation"),
+		UnitSubsystem->GetNavigationSystem()->RequestPath(UnitA, FVector(700.0f, 0.0f, 0.0f), 10.0f));
+	TestEqual(TEXT("Cancellation test has one queued request"), UnitSubsystem->GetNavigationSystem()->GetQueuedRequestCount(), 1);
+	TestTrue(TEXT("Queued navigation can be cancelled safely"), UnitSubsystem->GetNavigationSystem()->CancelPath(UnitA));
+	TestEqual(TEXT("Cancellation removes queued and in-flight work"), UnitSubsystem->GetNavigationSystem()->GetQueuedRequestCount(), 0);
+	Navigation = EntityManager.GetFragmentDataPtr<FMassUnitNavigationFragment>(UnitA.EntityHandle.ToMassEntityHandle());
+	TestTrue(TEXT("Cancellation clears the unit navigation fragment"),
+		Navigation && !Navigation->bPathRequested && !Navigation->bPathValid && Navigation->PathPoints.IsEmpty());
 
 	UFormationSystem* FormationSystem = UnitSubsystem->GetFormationSystem();
 	const int32 FormationHandle = FormationSystem->CreateFormation(FVector::ZeroVector, FRotator::ZeroRotator, TEXT("Infantry"));
@@ -182,6 +191,96 @@ bool FMassUnitNativeLifecycleTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Quick-start offset command preserves each unit's own start location"),
 		SpawnerNavigation && SpawnerNavigation->PathPoints.Num() == 1
 		&& SpawnerNavigation->PathPoints[0].Equals(FirstSpawnerTransform.GetLocation() + FVector(600.0f, 0.0f, 0.0f)));
+
+	UMassUnitCrowdSystem* CrowdSystem = UnitSubsystem->GetCrowdSystem();
+	if (!TestNotNull(TEXT("World crowd service is available"), CrowdSystem))
+	{
+		return false;
+	}
+	Spawner->bEnableCrowdSimulation = true;
+	Spawner->CrowdConfig.WanderRadius = 500.0f;
+	Spawner->CrowdConfig.MinWanderDistance = 100.0f;
+	Spawner->CrowdConfig.MinIdleTime = 0.0f;
+	Spawner->CrowdConfig.MaxIdleTime = 0.0f;
+	Spawner->CrowdConfig.MaxSimulationDistance = 0.0f;
+	Spawner->CrowdConfig.bEnableInteractions = false;
+	Spawner->CrowdConfig.RandomSeed = 2468;
+	const int32 CrowdGroupHandle = Spawner->StartCrowdSimulation();
+	TestTrue(TEXT("Spawner registers a continuous crowd group"), CrowdGroupHandle != INDEX_NONE);
+	TestTrue(TEXT("Spawner reports active crowd simulation"), Spawner->IsCrowdSimulationActive());
+	TestEqual(TEXT("Crowd group owns every spawned unit"), CrowdSystem->GetCrowdGroupUnitCount(CrowdGroupHandle), SpawnedUnits.Num());
+
+	const FMassUnitCrowdFragment* FirstCrowd = EntityManager.GetFragmentDataPtr<FMassUnitCrowdFragment>(SpawnedUnits[0].EntityHandle.ToMassEntityHandle());
+	const FMassUnitTargetFragment* FirstCrowdTarget = EntityManager.GetFragmentDataPtr<FMassUnitTargetFragment>(SpawnedUnits[0].EntityHandle.ToMassEntityHandle());
+	const FMassUnitTargetFragment* SecondCrowdTarget = EntityManager.GetFragmentDataPtr<FMassUnitTargetFragment>(SpawnedUnits[1].EntityHandle.ToMassEntityHandle());
+	TestTrue(TEXT("Crowd registration writes lightweight per-unit state"),
+		FirstCrowd && FirstCrowd->bEnabled && FirstCrowd->GroupHandle == CrowdGroupHandle);
+	TestTrue(TEXT("Crowd registration immediately assigns a random destination"),
+		FirstCrowdTarget && FirstCrowdTarget->bHasTargetLocation);
+	TestTrue(TEXT("Random destinations remain inside the configured group radius"),
+		FirstCrowdTarget && FVector::DistSquared2D(FirstCrowdTarget->TargetLocation, Spawner->GetActorLocation())
+			<= FMath::Square(Spawner->CrowdConfig.WanderRadius));
+	TestTrue(TEXT("Deterministic per-unit streams avoid one shared crowd destination"),
+		FirstCrowdTarget && SecondCrowdTarget
+		&& !FirstCrowdTarget->TargetLocation.Equals(SecondCrowdTarget->TargetLocation));
+	TestTrue(TEXT("Crowd diagnostics report assigned destinations"),
+		CrowdSystem->GetCrowdStats().DestinationsAssigned > 0);
+	TestEqual(TEXT("Crowd diagnostics are populated immediately after registration"),
+		CrowdSystem->GetCrowdStats().RegisteredUnits,
+		SpawnedUnits.Num());
+
+	FTransform CrowdStartTransform;
+	FTransform CrowdMovedTransform;
+	TestTrue(TEXT("Crowd movement baseline transform is readable"),
+		UnitManager->GetUnitTransform(SpawnedUnits[0], CrowdStartTransform));
+	for (int32 Step = 0; Step < 3; ++Step)
+	{
+		FMassExecutionContext CrowdMovementContext(EntityManager, 0.1f);
+		CrowdMovementContext.SetExecutionType(EMassExecutionContextType::Processor);
+		MovementProcessor->CallExecute(EntityManager, CrowdMovementContext);
+	}
+	TestTrue(TEXT("Crowd movement result transform is readable"),
+		UnitManager->GetUnitTransform(SpawnedUnits[0], CrowdMovedTransform));
+	TestTrue(TEXT("An active crowd destination produces smooth Mass movement"),
+		FVector::DistSquared2D(CrowdStartTransform.GetLocation(), CrowdMovedTransform.GetLocation()) > 1.0f);
+
+	TestTrue(TEXT("Crowd group can be paused"), CrowdSystem->SetCrowdGroupPaused(CrowdGroupHandle, true, true));
+	FirstCrowdTarget = EntityManager.GetFragmentDataPtr<FMassUnitTargetFragment>(SpawnedUnits[0].EntityHandle.ToMassEntityHandle());
+	TestTrue(TEXT("Pausing a crowd clears active movement"), FirstCrowdTarget && !FirstCrowdTarget->HasTarget());
+	TestTrue(TEXT("Crowd group can be resumed"), CrowdSystem->SetCrowdGroupPaused(CrowdGroupHandle, false, true));
+	FirstCrowdTarget = EntityManager.GetFragmentDataPtr<FMassUnitTargetFragment>(SpawnedUnits[0].EntityHandle.ToMassEntityHandle());
+	TestTrue(TEXT("Resuming a crowd assigns fresh work"), FirstCrowdTarget && FirstCrowdTarget->bHasTargetLocation);
+	Spawner->StopCrowdSimulation(false);
+	TestFalse(TEXT("Spawner unregisters its crowd group without destroying units"), Spawner->IsCrowdSimulationActive());
+	FirstCrowd = EntityManager.GetFragmentDataPtr<FMassUnitCrowdFragment>(SpawnedUnits[0].EntityHandle.ToMassEntityHandle());
+	TestTrue(TEXT("Unregistering restores non-crowd unit state"), FirstCrowd && !FirstCrowd->bEnabled);
+
+	FMassUnitCrowdConfig InteractionConfig;
+	InteractionConfig.WanderRadius = 500.0f;
+	InteractionConfig.bEnableSeparation = false;
+	InteractionConfig.bEnableInteractions = true;
+	InteractionConfig.InteractionChance = 1.0f;
+	InteractionConfig.InteractionRadius = 500.0f;
+	InteractionConfig.MinInteractionTime = 1.0f;
+	InteractionConfig.MaxInteractionTime = 1.0f;
+	InteractionConfig.MaxSimulationDistance = 0.0f;
+	const int32 InteractionGroupHandle = CrowdSystem->RegisterCrowdGroup(
+		SpawnedUnits,
+		Spawner->GetActorLocation(),
+		InteractionConfig,
+		false,
+		25.0f);
+	TestTrue(TEXT("Crowd interaction test group registers"), InteractionGroupHandle != INDEX_NONE);
+	TestTrue(TEXT("Nearby crowd members can begin lightweight paired interactions"),
+		CrowdSystem->GetCrowdStats().InteractionsStarted > 0);
+	bool bFoundInteractingUnit = false;
+	for (const FMassUnitHandle& UnitHandle : SpawnedUnits)
+	{
+		const FMassUnitStateFragment* State = EntityManager.GetFragmentDataPtr<FMassUnitStateFragment>(UnitHandle.EntityHandle.ToMassEntityHandle());
+		bFoundInteractingUnit |= State && State->CurrentState == EMassUnitState::Interacting;
+	}
+	TestTrue(TEXT("Crowd interactions write the lightweight interaction state"), bFoundInteractingUnit);
+	TestTrue(TEXT("Interaction group unregisters cleanly"), CrowdSystem->UnregisterCrowdGroup(InteractionGroupHandle, true));
 
 	UNiagaraUnitSystem* VisualSystem = UnitSubsystem->GetNiagaraSystem();
 	if (!TestNotNull(TEXT("Quick-start visual service is available"), VisualSystem))

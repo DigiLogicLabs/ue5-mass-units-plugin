@@ -25,7 +25,10 @@ Open **Project Settings > Plugins > Mass Unit System** to configure:
 - `Max Units`: creation safety cap, default 10,000
 - `Max Skeletal Mesh Units`: component pool capacity, default 100
 - `Visual Update Interval`: Niagara/ISM upload interval
+- `Crowd Update Interval` and `Max Crowd Units Per Update`: timer frequency and round-robin behavior budget
+- `Crowd Spatial Cell Size`: local-neighbor hash resolution
 - LOD thresholds, skeletal range, and maximum visible range
+- Visibility LOD update intervals plus crowd behavior-LOD distances and interval multipliers
 - Optional default Niagara system and fallback static mesh
 - Direct-path behavior when no nav data exists
 
@@ -58,4 +61,4 @@ After compilation, run **Tools > Test Automation**, filter for `MassUnitSystem`,
 MassUnitSystem.Core.NativeMassLifecycle
 ```
 
-The test creates two native Mass entities and checks independent fragments, combat, path fallback, movement, formation membership, destruction, and safe world teardown.
+The test checks independent native fragments, combat, path fallback/cancellation, movement, formation membership, deterministic wandering, crowd pause/resume, paired interaction state, stable rendering, destruction, and safe world teardown.

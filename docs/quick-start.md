@@ -26,6 +26,8 @@ Expected result:
 - The spawner actor does not tick and does not create one Actor per unit.
 - Stopping play destroys only the Mass entities owned by that spawner.
 
+This one-shot movement is the installation smoke test. To keep the units active, select the spawner and enable **Crowd > Enable Crowd Simulation**. That option takes precedence over `Move On Begin Play` and continuously assigns bounded, deterministic-random destinations with speed/idle variation, spatial separation, and occasional paired interaction pauses.
+
 If the units are outside the camera, select the spawner before starting and use **F** to frame it in the editor viewport. The cyan arrow shows the default movement direction. Enable `Visual Debug` on the spawner to draw cyan spawn boxes and green command arrows during play.
 
 ## 3. Make it data-driven
@@ -46,6 +48,8 @@ For navmesh routing:
 1. Add a **Nav Mesh Bounds Volume** around the traversable area.
 2. Build navigation and press **P** to confirm the green navmesh overlay.
 3. Enable `Use Navigation` on the Mass Unit Spawner.
+
+The same `Use Navigation` setting applies to continuous crowd destinations. Crowd pause, sleep, and unregister operations cancel queued and in-flight requests so a late async callback cannot restart a stopped unit.
 
 If navigation data is absent, the default project setting falls back to a direct path. Disable **Project Settings > Plugins > Mass Unit System > Fallback To Direct Path** when missing navigation should fail loudly instead.
 
@@ -72,6 +76,8 @@ Store handles in an array owned by the encounter/wave system. Validate long-live
 - Spawn on authority by default. The built-in spawner's `Spawn On Authority Only` prevents accidental duplicate simulation; Mass replication remains project-specific.
 - Start with direct movement, then enable navmesh routing after the visual/spawn baseline passes.
 - Use the formation service for group destinations instead of issuing converging point targets when spacing matters.
+- Use `Enable Crowd Simulation` for ambient populations; use formations or explicit destinations for commanded squads.
+- Tune `Max Crowd Units Per Update`, behavior LOD distances/multipliers, and each group's `Max Simulation Distance` before adding heavyweight AI.
 - Keep optional GAS and Behavior Tree bridges selective; register only units that need actor-backed services.
 - Scale in measured steps such as 25, 100, 500, and 1,000 units while profiling the target platform.
 
@@ -85,5 +91,6 @@ At runtime, these Blueprint calls separate common failure modes:
 - `Get Instanced Mesh Instance Count`: reports the asset-free/static-mesh fallback instance count.
 - `Get Instanced Mesh Topology Revision`: should remain unchanged while existing units move.
 - `Get Queued Request Count` on the navigation system: exposes queued or in-flight path requests.
+- `Get Crowd Stats` on the crowd system: reports registered, active, sleeping, updated, interacting, and neighbor-check counts.
 
 If unit counts are correct but nothing is visible, verify there is a local player view, the spawner is within `Max Visible Distance`, and **Enable Instanced Mesh Fallback** is enabled.

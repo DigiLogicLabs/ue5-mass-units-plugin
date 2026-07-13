@@ -1,9 +1,9 @@
 {
 	"FileVersion": 3,
-	"Version": 4,
-	"VersionName": "1.2.1",
+	"Version": 5,
+	"VersionName": "1.3.0",
 	"FriendlyName": "Mass Unit System",
-	"Description": "Native Mass Entity units with movement, formations, navigation, scalable rendering, and optional GAS integration",
+	"Description": "Native Mass Entity crowds with budgeted behavior LOD, movement, interactions, scalable rendering, and optional GAS integration",
 	"Category": "Gameplay",
 	"CreatedBy": "Digi Logic Labs LLC",
 	"CreatedByURL": "https://github.com/DigiLogicLabs",

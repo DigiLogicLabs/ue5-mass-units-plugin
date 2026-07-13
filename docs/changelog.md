@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.3.0
+
+- Added a world-owned, timer-driven crowd service with deterministic bounded wandering, random speed/idle variation, pause/resume, movable centers, forced decisions, and Blueprint diagnostics.
+- Added spatial-hash separation steering and paired non-combat interaction events without per-unit Actors, UObjects, collision components, or Behavior Trees.
+- Added behavior LOD distance multipliers, round-robin decision budgets, observer-based simulation sleeping, and staggered multi-view visual LOD refresh intervals.
+- Added safe queued/in-flight navigation cancellation for crowd pause, interaction, sleeping, and unregister paths.
+- Added spawner opt-in controls plus automation coverage for crowd destinations, deterministic variation, interactions, pause/resume, and cleanup.
+
 ## 1.2.1
 
 - Replaced the moving-unit HISM fallback with dynamic ISM components so continuous movement does not rebuild hierarchical cluster trees.

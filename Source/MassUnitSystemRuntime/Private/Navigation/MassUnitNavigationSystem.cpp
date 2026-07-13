@@ -49,6 +49,43 @@ bool UMassUnitNavigationSystem::RequestPath(FMassUnitHandle UnitHandle, const FV
 	return RequestPathInternal(UnitHandle.EntityHandle, Destination, AcceptanceRadius);
 }
 
+bool UMassUnitNavigationSystem::CancelPath(FMassUnitHandle UnitHandle)
+{
+	return CancelPathInternal(UnitHandle.EntityHandle);
+}
+
+bool UMassUnitNavigationSystem::CancelPathInternal(FMassUnitEntityHandle Entity)
+{
+	if (!IsEntityValid(Entity))
+	{
+		return false;
+	}
+
+	PathRequestQueue.RemoveAll([Entity](const FPathRequest& Existing) { return Existing.Entity == Entity; });
+	TArray<uint32> PendingPathIds;
+	for (const TPair<uint32, FMassUnitEntityHandle>& Pair : PendingPathOwners)
+	{
+		if (Pair.Value == Entity)
+		{
+			PendingPathIds.Add(Pair.Key);
+		}
+	}
+	for (const uint32 PathId : PendingPathIds)
+	{
+		PendingPathOwners.Remove(PathId);
+		if (NavigationSystem)
+		{
+			NavigationSystem->AbortAsyncFindPathRequest(PathId);
+		}
+	}
+
+	if (FMassUnitNavigationFragment* Navigation = EntitySubsystem->GetMutableEntityManager().GetFragmentDataPtr<FMassUnitNavigationFragment>(Entity.ToMassEntityHandle()))
+	{
+		Navigation->ResetPath();
+	}
+	return true;
+}
+
 bool UMassUnitNavigationSystem::RequestPathInternal(FMassUnitEntityHandle Entity, const FVector& Destination, float AcceptanceRadius)
 {
 	if (!IsEntityValid(Entity))

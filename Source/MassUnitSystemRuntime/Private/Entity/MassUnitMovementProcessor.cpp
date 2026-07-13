@@ -26,6 +26,11 @@ void UMassUnitMovementProcessor::ConfigureQueries(const TSharedRef<FMassEntityMa
 	EntityQuery.AddRequirement<FMassUnitTargetFragment>(EMassFragmentAccess::ReadWrite);
 	EntityQuery.AddRequirement<FMassUnitNavigationFragment>(EMassFragmentAccess::ReadWrite);
 	EntityQuery.AddRequirement<FMassUnitVisualFragment>(EMassFragmentAccess::ReadWrite);
+	// Keep this optional so project-defined/legacy archetypes that use the core movement
+	// fragments continue to move even when they were not built from UUnitTemplate.
+	EntityQuery.AddRequirement<FMassUnitCrowdFragment>(
+		EMassFragmentAccess::ReadOnly,
+		EMassFragmentPresence::Optional);
 }
 
 void UMassUnitMovementProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
@@ -41,6 +46,8 @@ void UMassUnitMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 		TArrayView<FMassUnitTargetFragment> Targets = ChunkContext.GetMutableFragmentView<FMassUnitTargetFragment>();
 		TArrayView<FMassUnitNavigationFragment> Navigation = ChunkContext.GetMutableFragmentView<FMassUnitNavigationFragment>();
 		TArrayView<FMassUnitVisualFragment> Visuals = ChunkContext.GetMutableFragmentView<FMassUnitVisualFragment>();
+		const TConstArrayView<FMassUnitCrowdFragment> Crowds = ChunkContext.GetFragmentView<FMassUnitCrowdFragment>();
+		const bool bHasCrowdData = !Crowds.IsEmpty();
 
 		for (FMassExecutionContext::FEntityIterator It = ChunkContext.CreateEntityIterator(); It; ++It)
 		{
@@ -52,6 +59,7 @@ void UMassUnitMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 			FMassUnitTargetFragment& Target = Targets[It];
 			FMassUnitNavigationFragment& Nav = Navigation[It];
 			FMassUnitVisualFragment& Visual = Visuals[It];
+			const FMassUnitCrowdFragment* Crowd = bHasCrowdData ? &Crowds[It] : nullptr;
 			State.StateTime += DeltaTime;
 
 			if (State.CurrentState == EMassUnitState::Dead || State.CurrentState == EMassUnitState::Stunned)
@@ -113,12 +121,19 @@ void UMassUnitMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 			}
 
 			FVector DesiredVelocity = FVector::ZeroVector;
-			if (bHasDestination)
+			const bool bCrowdMovementSuppressed = Crowd && Crowd->bEnabled
+				&& (Crowd->bSleeping || State.CurrentState == EMassUnitState::Interacting);
+			if (bHasDestination && !bCrowdMovementSuppressed)
 			{
 				const FVector ToDestination = Destination - CurrentLocation;
 				if (ToDestination.SizeSquared2D() > FMath::Square(StopDistance))
 				{
-					DesiredVelocity = ToDestination.GetSafeNormal2D() * State.MoveSpeed;
+					FVector DesiredDirection = ToDestination.GetSafeNormal2D();
+					if (Crowd && Crowd->bEnabled && !Crowd->SteeringDirection.IsNearlyZero())
+					{
+						DesiredDirection = (DesiredDirection + Crowd->SteeringDirection).GetSafeNormal2D();
+					}
+					DesiredVelocity = DesiredDirection * State.MoveSpeed;
 				}
 			}
 

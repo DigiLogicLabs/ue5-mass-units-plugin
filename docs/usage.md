@@ -19,9 +19,25 @@ Handles contain a native Mass entity index and serial. Always call `Is Unit Vali
 
 Movement, combat, and visibility processors register with the normal Mass processing phases. Do not tick them manually.
 
+## Continuous crowds
+
+For a placed spawner, enable `Enable Crowd Simulation`. The spawner remains non-ticking; it registers its native handles with the world-owned `UMassUnitCrowdSystem`, whose timer performs low-frequency decisions. The existing Mass movement processor still supplies smooth motion.
+
+For project-owned waves, call `Register Crowd Group` with any valid handle array, center, and `MassUnitCrowdConfig`. Retain the returned integer handle and use:
+
+- `Set Crowd Group Paused`
+- `Set Crowd Group Center`
+- `Force Crowd Group Update`
+- `Unregister Crowd Group`
+- `Get Crowd Stats`
+
+Random choices are deterministic for a group seed, entity handle, and decision sequence. Separation uses nearby cells instead of all-pairs scanning. Social interactions set the lightweight `Interacting` state, face paired units toward each other, and broadcast `On Crowd Interaction Started`; they do not assign combat targets or require GAS.
+
+Behavior LOD uses the nearest player-controller pawn/view as an observer. Farther units make decisions less often, and a group's `Max Simulation Distance` can sleep units beyond every observer. With no observer—such as a server-side test world—the service keeps the group active rather than incorrectly sleeping it.
+
 ## Navigation
 
-`Set Unit Destination` writes a direct destination immediately. `Request Path` queues an asynchronous navmesh request and maps the result back to the exact entity that requested it. The subsystem submits up to the configured request budget each tick.
+`Set Unit Destination` writes a direct destination immediately. `Request Path` queues an asynchronous navmesh request and maps the result back to the exact entity that requested it. `Cancel Path` removes queued/in-flight work and clears the current path. The subsystem submits up to the configured request budget each tick.
 
 If a world has no navigation data and direct fallback is enabled, the request still succeeds with the destination as a one-point path. This is useful for empty test maps and obstacle-free games.
 
@@ -66,6 +82,8 @@ The bridge is opt-in and does not manufacture actors or Ability System Component
 4. Unregister the ASC when the owning gameplay object is retired.
 
 Lightweight Mass combat works without GAS.
+
+For large battles, keep ambient movement, target acquisition, and coarse health in Mass. Register externally owned ASCs only for units currently requiring authoritative abilities/effects or player interaction, then demote/unregister them when that detail is no longer needed. The crowd interaction delegate is a convenient promotion hook but does not create ASCs automatically.
 
 ## Behavior Trees
 

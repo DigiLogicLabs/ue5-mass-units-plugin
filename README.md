@@ -2,7 +2,7 @@
 
 Mass Unit System is a Blueprint- and C++-ready foundation for large groups of lightweight gameplay units using Unreal Engine's native Mass Entity framework.
 
-Version **1.2.1** is verified with **Unreal Engine 5.7.2** on Windows for Editor, Development, and Shipping targets.
+Version **1.3.0** is verified with **Unreal Engine 5.7.2** on Windows for Editor, Development, and Shipping targets.
 
 ## What works out of the box
 
@@ -11,7 +11,8 @@ Version **1.2.1** is verified with **Unreal Engine 5.7.2** on Windows for Editor
 - Visible engine-cube fallback with no project assets required
 - Instanced static-mesh rendering for large unit counts
 - Movement, targets, teams, lightweight combat, formations, and batched navigation
-- Distance visibility/LOD controls and a bounded skeletal-mesh pool
+- Continuous crowd wandering, spatial-hash separation, random speed/idle variation, and interaction events
+- Budgeted behavior LOD, staggered distance visibility, simulation sleeping, and a bounded skeletal-mesh pool
 - Optional Niagara, Gameplay Ability System, and Behavior Tree integrations
 - Automatic world-subsystem initialization and deterministic cleanup
 
@@ -66,7 +67,28 @@ Default result:
 
 If the grid is outside the camera, select the spawner and press **F** before Play to frame it. The cyan editor arrow shows the default movement direction. Set `Enable Visual Debug` on the spawner to draw cyan spawn boxes and green destination arrows.
 
-## 3. Use your own unit mesh and stats
+## 3. Turn the smoke test into a continuous crowd
+
+The default 1,500 cm move intentionally stops. It is the deterministic installation test. For ongoing crowd behavior:
+
+1. Select the placed **Mass Unit Spawner**.
+2. Enable **Crowd > Enable Crowd Simulation**.
+3. Press **Play** or **Simulate**.
+
+`Enable Crowd Simulation` takes precedence over `Move On Begin Play`. With the default crowd settings, units continuously choose deterministic-random destinations inside a 1,500 cm radius, vary their speed and idle duration, separate from nearby units through a two-dimensional spatial hash, and occasionally pause in pairs. No Behavior Tree, StateTree, collision component, Actor, or UObject is created per unit.
+
+Useful per-spawner crowd controls:
+
+- `Wander Radius`, `Min Wander Distance`, idle range, move timeout, and speed-multiplier range
+- `Enable Separation`, `Separation Radius`, and `Separation Weight`
+- `Enable Interactions` plus interaction chance/radius/duration; bind `On Crowd Interaction Started` on the world crowd system
+- `Max Simulation Distance`: puts ambient units to sleep when every player observer is farther away; zero disables sleeping
+- `Random Seed`: repeatable choices per native entity handle
+- `Enable Visual Debug`: white group bounds, cyan destinations, and orange interaction links
+
+Blueprint functions `Start Crowd Simulation`, `Stop Crowd Simulation`, and `Force Crowd Update` are available on the spawner. Advanced managers can register any handle array through `Get Crowd System -> Register Crowd Group` and use pause, center, force-update, statistics, and interaction-event APIs.
+
+## 4. Use your own unit mesh and stats
 
 1. In the Content Browser choose **Add > Miscellaneous > Data Asset**.
 2. Select `UnitTemplate`.
@@ -91,6 +113,7 @@ Create a Blueprint with parent class `MassUnitSpawner`. Its setup and optimizati
 - `Unit Template`, `Unit Count`
 - `Columns`, `Unit Spacing`, `Spawn Height`
 - `Spawn On Begin Play`, `Move On Begin Play`, `Destination Offset`
+- `Enable Crowd Simulation` and all nested crowd behavior/LOD controls
 - `Use Navigation`, `Acceptance Radius`
 - `Spawn On Authority Only`, `Destroy Spawned Units On End Play`
 - `Enable Visual Debug`, `Debug Duration`
@@ -100,6 +123,7 @@ Useful Blueprint functions:
 - `Spawn Units`
 - `Move Spawned Units By Offset`
 - `Command Spawned Units To Location`
+- `Start Crowd Simulation`, `Stop Crowd Simulation`, `Force Crowd Update`
 - `Get Valid Spawned Units`
 - `Get Valid Spawned Unit Count`
 - `Destroy Spawned Units`
@@ -132,7 +156,13 @@ Project-wide settings are under **Project Settings > Plugins > Mass Unit System*
 |---|---:|---|
 | `Max Units` | 10,000 | Hard safety cap for plugin-owned units in one world |
 | `Visual Update Interval` | 0.033 s | ISM/Niagara upload rate; increase to reduce visual update cost |
+| `Crowd Update Interval` | 0.1 s | Base rate for behavior decisions and spatial steering; smooth Mass movement remains independent |
+| `Max Crowd Units Per Update` | 500 | Round-robin budget for crowd decisions during one timer callback |
+| `Crowd Spatial Cell Size` | 200 cm | Spatial-hash cell size for local separation and interaction searches |
 | `LOD Distance Thresholds` | 500/1,500/3,000/6,000 cm | Distance bands written to unit visual LOD data |
+| `Visibility LOD Update Intervals` | 0.05/0.1/0.2/0.5/1.0 s | Staggered distance/culling refresh rates from near to far |
+| `Crowd Simulation LOD Distances` | 2,500/5,000/10,000 cm | Player-observer bands that reduce ambient decision frequency |
+| `Crowd Simulation LOD Interval Multipliers` | 1/2/4/8 x | Behavior update scaling for successive distance bands |
 | `Max Visible Distance` | 10,000 cm | Excludes farther units from visual submission; zero disables culling |
 | `Max Skeletal Mesh Units` | 100 | Caps close-range skeletal components; set to zero for instanced-only use |
 | `Skeletal Mesh Distance` | 300 cm | Distance inside which eligible units request skeletal representation |
@@ -151,14 +181,16 @@ Blueprint diagnostics:
 - `Get Instanced Mesh Instance Count`: currently submitted fallback instances
 - `Get Instanced Mesh Topology Revision`: changes only when slots are added/removed; it remains stable while units move
 - `Get Queued Request Count`: queued and in-flight navigation requests
+- `Get Crowd Stats`: registered/active/sleeping counts, update budget usage, destinations, interactions, and neighbor checks
 
 Safe starting pattern:
 
 1. Prove the install with 25 default cubes and direct movement.
 2. Assign one static mesh and test 100 units.
-3. Increase through 500 and 1,000 while profiling the target hardware.
-4. Add navmesh routing, skeletal units, Niagara, GAS, or Behavior Trees one feature at a time.
-5. Keep actor-backed GAS/Behavior Tree integration selective instead of attaching it to every entity.
+3. Enable crowd simulation and increase through 100, 500, and 1,000 while watching `Get Crowd Stats` and Unreal Insights.
+4. Tune crowd budgets, behavior LOD, maximum simulation distance, visual range, and representation for the target hardware.
+5. Add navmesh routing, skeletal units, Niagara, GAS, or Behavior Trees one feature at a time.
+6. Keep actor-backed GAS/Behavior Tree integration selective instead of attaching it to every entity.
 
 `Max Units` is a safety cap, not a performance guarantee. Mesh complexity, materials, navigation, gameplay logic, platform, and camera coverage determine the real budget.
 
@@ -182,7 +214,7 @@ Open **Tools > Test Automation**, filter for `MassUnitSystem`, and run:
 MassUnitSystem.Core.NativeMassLifecycle
 ```
 
-The test covers native entity creation, independent fragments, combat, path fallback, movement, formations, asset-free defaults, spawner ownership, stable ISM updates, destruction, and safe world teardown.
+The test covers native entity creation, independent fragments, combat, path fallback/cancellation, movement, formations, deterministic crowd destinations, pause/resume, paired interactions, asset-free defaults, stable ISM updates, destruction, and safe world teardown.
 
 ## Quick troubleshooting
 

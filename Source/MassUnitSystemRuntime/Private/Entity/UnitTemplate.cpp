@@ -38,6 +38,7 @@ TArray<const UScriptStruct*> UUnitTemplate::GetRequiredFragments() const
 		FMassUnitVisualFragment::StaticStruct(),
 		FMassUnitFormationFragment::StaticStruct(),
 		FMassUnitNavigationFragment::StaticStruct(),
+		FMassUnitCrowdFragment::StaticStruct(),
 		FMassUnitLODFragment::StaticStruct(),
 		FMassUnitVisualizationLODFragment::StaticStruct()
 	};

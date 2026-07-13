@@ -35,6 +35,22 @@ Resolve it from an object in a Game, PIE, or Game Preview world. It intentionall
 - If no nav data exists, enable **Fallback To Direct Path**.
 - Dead or stunned units intentionally do not move.
 
+## Crowd units move once and stop
+
+- The default `Move On Begin Play` behavior is intentionally a one-shot installation test.
+- Enable `Crowd > Enable Crowd Simulation` on the spawner for continuous wandering.
+- Confirm `Start Crowd Simulation` returns a handle other than `-1` and `Get Crowd Stats` reports registered units.
+- A paused group, an active interaction, or distance sleeping intentionally stops movement. Check `Sleeping Units`, `Max Simulation Distance`, and the group pause state.
+- With navigation enabled, build nav data or keep direct fallback enabled.
+
+## Crowd behavior is too expensive
+
+- Increase `Crowd Update Interval` or lower `Max Crowd Units Per Update` to spread decisions across more frames.
+- Increase behavior-LOD interval multipliers and set a practical per-group `Max Simulation Distance`.
+- Keep separation/interaction radii near the spatial cell size; very large radii visit more neighbor cells.
+- Reduce `Max Visible Distance`, profile in Unreal Insights, and use Niagara/VAT for production-scale GPU representation.
+- Avoid an ASC, Behavior Tree, collision component, or Actor per ambient unit; promote only the nearby/interactive subset.
+
 ## Instanced units flash or blink while moving
 
 - Use plugin version 1.2.1 or newer. Earlier fallback rendering cleared and rebuilt HISM instances on each visual refresh.
