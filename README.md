@@ -2,18 +2,21 @@
 
 Mass Unit System is a Blueprint- and C++-ready foundation for large groups of lightweight gameplay units using Unreal Engine's native Mass Entity framework.
 
-Version **1.3.0** is verified with **Unreal Engine 5.7.2** on Windows for Editor, Development, and Shipping targets.
+Version **1.4.0** is verified with **Unreal Engine 5.7.2** on Windows for Editor, Development, and Shipping targets.
 
 ## What works out of the box
 
-- Native, world-owned Mass entities—no Actor or UObject per unit
+- Native, world-owned Mass entities - no Actor or UObject per unit
 - A placeable **Mass Unit Spawner** with Blueprint-writable controls
 - Visible engine-cube fallback with no project assets required
 - Instanced static-mesh rendering for large unit counts
 - Movement, targets, teams, lightweight combat, formations, and batched navigation
-- Continuous crowd wandering, spatial-hash separation, random speed/idle variation, and interaction events
+- Continuous planar or free-3D crowd wandering, spatial-hash separation, random speed/idle variation, and interaction events
 - Budgeted behavior LOD, staggered distance visibility, simulation sleeping, and a bounded skeletal-mesh pool
-- Optional Niagara, Gameplay Ability System, and Behavior Tree integrations
+- Opt-in player acquisition, group-shared nav corridors, efficient moving-target follow/repath, cooldown attacks, and interaction/damage activation
+- Lightweight native health, healing, death events, and nearest/radius queries exposed to Blueprint
+- Standard Actor damage plus optional target Gameplay Effects for GAS characters
+- Optional Niagara, selective Gameplay Ability System, and Behavior Tree integrations
 - Automatic world-subsystem initialization and deterministic cleanup
 
 ## 1. Install
@@ -75,20 +78,107 @@ The default 1,500 cm move intentionally stops. It is the deterministic installat
 2. Enable **Crowd > Enable Crowd Simulation**.
 3. Press **Play** or **Simulate**.
 
-`Enable Crowd Simulation` takes precedence over `Move On Begin Play`. With the default crowd settings, units continuously choose deterministic-random destinations inside a 1,500 cm radius, vary their speed and idle duration, separate from nearby units through a two-dimensional spatial hash, and occasionally pause in pairs. No Behavior Tree, StateTree, collision component, Actor, or UObject is created per unit.
+`Enable Crowd Simulation` takes precedence over `Move On Begin Play`. With the default crowd settings, units continuously choose deterministic-random destinations inside a 1,500 cm radius, vary their speed and idle duration, separate from nearby units through a spatial hash, and occasionally pause in pairs. Large groups are deterministically partitioned into lightweight managed subgroups (32 units by default). When navigation is enabled, each subgroup shares an ambient corridor instead of requesting one path per entity. No Behavior Tree, StateTree, collision component, Actor, or UObject is created per unit or subgroup.
 
 Useful per-spawner crowd controls:
 
+- `Movement Mode`: `Planar 2D` for ground/navmesh crowds or `Free 3D` for flying, swimming, and volumetric groups
 - `Wander Radius`, `Min Wander Distance`, idle range, move timeout, and speed-multiplier range
 - `Enable Separation`, `Separation Radius`, and `Separation Weight`
+- `Enable Managed Subgroups`, `Managed Subgroup Size`, subgroup wander scale, and shared-path look-ahead
+- `Conform To Navmesh Height` plus `Navigation Height Offset` for ground-following Planar 2D units
 - `Enable Interactions` plus interaction chance/radius/duration; bind `On Crowd Interaction Started` on the world crowd system
+- `Enable Group Cue Events` plus `Group Cue Cooldown`; bind `On Crowd Cue Requested` once to pooled audio/Niagara presentation
 - `Max Simulation Distance`: puts ambient units to sleep when every player observer is farther away; zero disables sleeping
 - `Random Seed`: repeatable choices per native entity handle
 - `Enable Visual Debug`: white group bounds, cyan destinations, and orange interaction links
 
 Blueprint functions `Start Crowd Simulation`, `Stop Crowd Simulation`, and `Force Crowd Update` are available on the spawner. Advanced managers can register any handle array through `Get Crowd System -> Register Crowd Group` and use pause, center, force-update, statistics, and interaction-event APIs.
 
-## 4. Use your own unit mesh and stats
+`Free 3D` uses a three-dimensional spatial hash, sphere-volume destinations, XYZ separation, and pitched movement. Unreal's standard navmesh is planar, so `Use Navigation` is intentionally bypassed for a free-3D group; movement remains direct and fully 3D. `Planar 2D` is navmesh-compatible and can follow corridor elevation while remaining upright.
+
+For hills, ramps, bridges, or obstacles, add a `NavMeshBoundsVolume`, build navigation, press **P** to confirm green coverage, and enable `Use Navigation` on the spawner. Keep `Conform To Navmesh Height` enabled and set `Navigation Height Offset` to the distance from the mesh pivot to its floor contact (50 cm for the default 100 cm cube). Direct fallback deliberately remains a cheap straight line and cannot discover terrain.
+
+## 4. Make the crowd react to a player
+
+Player engagement is opt-in and does not change an existing ambient crowd. The quickest chase test is:
+
+1. Select the **Mass Unit Spawner**.
+2. Enable `Enable Crowd Simulation`.
+3. Enable `Enable Player Engagement`.
+4. Set `Activation Mode` to `Always Acquire Player`.
+5. For a visual-only test, disable `Apply Actor Damage`.
+6. Press **Play** with a possessed player pawn.
+
+The group acquires the nearest player pawn, stays simulation-awake while that target is valid, follows one group-level target sample through deterministic spread slots, and attacks after entering range. There is no per-unit perception raycast. Representation distance LOD and project-wide update budgets remain active. **Simulate** may not create a possessed pawn; use Play or call `Activate Crowd Against Actor` explicitly.
+
+### Activation modes
+
+| Mode | Behavior |
+|---|---|
+| `Manual Blueprint Call` | Waits for `Activate Crowd Against Actor` or `Activate Crowd Group For Actor` |
+| `Player Interaction or Damage` | `Notify Spawned Unit Interacted` activates the group; `Damage Spawned Unit And Activate` also damages native health |
+| `Player Proximity` | Acquires the nearest possessed player inside `Activation Radius` |
+| `Always Acquire Player` | Acquires the nearest available possessed player; useful for an immediate chase test |
+
+`Auto Deactivate` releases an interaction/proximity/manual target when no living group member remains within `Deactivation Distance`. `Return To Wander On Deactivate` resumes ambient decisions; disable it to hold the group idle until it is activated again. Always-acquire groups intentionally keep their available player target.
+
+### Interaction or player-hit pattern
+
+The zero-asset dynamic-ISM renderer deliberately uses no per-instance collision. It therefore does not create thousands of collision bodies or return a Mass handle from a cube hit. Resolve a world interaction point from the project's cursor, ground trace, weapon sweep, targeting volume, or selection system, then use the nearest-unit query:
+
+```text
+Player interaction / weapon impact world location
+  -> Mass Unit Spawner: Find Closest Spawned Unit
+     (or Get Mass Unit Subsystem -> Get Crowd System -> Find Closest Crowd Unit)
+  -> Is Unit Valid
+  -> Notify Spawned Unit Interacted
+     or Damage Spawned Unit And Activate
+```
+
+Use a small `Max Distance` appropriate to the unit footprint so a miss does not select a distant entity. Choose planar distance for ground games and 3D distance for flying/swimming targets. For custom renderers that already provide a handle, skip the nearest query and call the interaction/damage function directly.
+
+The equivalent advanced group APIs are:
+
+- `Configure Crowd Group Engagement`
+- `Activate Crowd Group For Actor`, `Deactivate Crowd Group Engagement`
+- `Notify Unit Interacted`, `Damage Unit And Activate`
+- `Find Closest Crowd Unit`, `Is Crowd Group Engaged`, `Get Crowd Group Target Actor`
+- `Get Crowd Group Subgroup Count`, `Get Unit Subgroup Index`, `Get Crowd Subgroup Units`
+- `On Crowd Engagement Started`, `On Crowd Engagement Ended`, `On Crowd Attack Requested`, `On Crowd Cue Requested`
+
+### Follow, pathing, and attack controls
+
+| Control | Default | Purpose |
+|---|---:|---|
+| `Target Refresh Interval` | 0.2 s | Samples the target once per group instead of once per entity per frame |
+| `Repath Distance` | 125 cm | Rebuilds a unit destination/path only after meaningful target movement |
+| `Use Shared Navigation Path` | On | Uses one navmesh corridor per group instead of one path query per entity |
+| `Shared Path Repath Interval` | 0.5 s | Caps expensive group navmesh path refresh frequency |
+| `Shared Path Repath Distance` | 250 cm | Requires meaningful target movement before rebuilding the shared corridor |
+| `Shared Path Look Ahead Distance` | 350 cm | Advances followers along the corridor while local separation keeps spacing |
+| `Follow Distance` | 150 cm | Base deterministic stand-off radius around the player |
+| `Follow Spread` | 125 cm | Prevents all units from collapsing onto one location |
+| `Engaged Move Speed Multiplier` | 1.1 x | Multiplies the original template move speed during engagement |
+| `Enable Attacks` | On | Uses each native unit's cooldown and range for attack requests |
+| `Attack Range Override` | 0 cm | Zero uses the `UnitTemplate` attack range; positive values override the group |
+| `Damage Multiplier` | 1.0 x | Scales template base damage and unit level |
+| `Apply Actor Damage` | On | Routes damage through Unreal's `AnyDamage` pipeline |
+| `Gameplay Effect To Target` | Empty | Optionally applies a GAS Gameplay Effect when the target exposes an ASC |
+
+Planar groups can enable `Use Navigation`. Engagement then calculates one navmesh corridor from the living group centroid and shares its look-ahead points with every entity; local spatial-hash separation and deterministic final slots provide individual motion. A final follow slot is projected onto the navmesh once so spread remains terrain-aligned without building an individual path or issuing a ground raycast. Disable `Use Shared Navigation Path` only when units truly require independent routes; those requests remain bounded by `Max Path Requests Per Frame`. Free-3D groups use direct XYZ steering because the engine navmesh is planar. All groups still use the project-wide `Max Crowd Units Per Update` round-robin budget.
+
+Engagement visual debug draws one purple group target/corridor by default. `Draw Unit Destinations` is an advanced opt-in that draws a red arrow for every entity; those arrows are debug geometry, not traces or perception queries.
+
+### Native health and GAS ownership
+
+Every unit has lightweight native `Health`, `Max Health`, damage, attack range, and cooldown fragments. Blueprint can use `Get Unit Health`, `Get Unit Health Percent`, `Apply Damage`, `Heal Unit`, `On Unit Health Changed`, and `On Unit Died` without creating an Actor or Ability System Component per entity. `Find Closest Unit` and `Get Units In Radius` support either planar or 3D distance.
+
+For a GAS player target, assign `Gameplay Effect To Target`; the plugin finds the target Actor's ASC and applies the effect on authority. If that Gameplay Effect owns health damage, disable `Apply Actor Damage` to avoid applying damage twice. `On Crowd Attack Requested` always fires and is the extension point for project-specific hit reactions, cues, abilities, or damage routing.
+
+Unpromoted Mass units use native health as their source of truth. The existing `GAS Unit Integration` remains a selective bridge to an externally owned ASC for elite/near-player units; it does not allocate an ASC per crowd entity or automatically mirror native health into GAS attributes.
+
+## 5. Use your own unit mesh and stats
 
 1. In the Content Browser choose **Add > Miscellaneous > Data Asset**.
 2. Select `UnitTemplate`.
@@ -96,13 +186,13 @@ Blueprint functions `Start Crowd Simulation`, `Stop Crowd Simulation`, and `Forc
 4. Set health, damage, attack range/cooldown, move speed, team, and visual assets.
 5. Assign the Data Asset to the placed spawner's `Unit Template` field.
 
-Rendering selection is automatic:
+Rendering selection is automatic and bounded:
 
-1. Template static mesh
-2. Project fallback static mesh
-3. Engine cube
+1. The closest eligible units may use the template skeletal mesh while pool capacity is available.
+2. Remaining units use the template static mesh, the project fallback static mesh, or the engine cube.
+3. A configured Niagara renderer may consume the documented `Unit*` arrays instead of the ISM fallback.
 
-A skeletal mesh is used only at close range when skeletal-pool capacity is available. This keeps the large-unit path instanced by default.
+For skeletal units, optionally assign an Animation Blueprint and/or Idle, Move, Attack, Death, and Stun clips. Explicit state clips take precedence. Skeletal entry/exit hysteresis prevents representation flicker near the distance boundary. For VAT/static-mesh materials, the ISM fallback supplies eight per-instance floats in this order: animation index, animation time, visual LOD, team id, team R, team G, team B, and health percent. Animation indices come from the template's registered `Animation Tags`, not the unit-state enum ordinal.
 
 ## Blueprint setup
 
@@ -113,7 +203,8 @@ Create a Blueprint with parent class `MassUnitSpawner`. Its setup and optimizati
 - `Unit Template`, `Unit Count`
 - `Columns`, `Unit Spacing`, `Spawn Height`
 - `Spawn On Begin Play`, `Move On Begin Play`, `Destination Offset`
-- `Enable Crowd Simulation` and all nested crowd behavior/LOD controls
+- `Enable Crowd Simulation`, `Movement Mode`, and all nested crowd behavior/LOD controls
+- `Enable Player Engagement` and all nested activation/follow/combat controls
 - `Use Navigation`, `Acceptance Radius`
 - `Spawn On Authority Only`, `Destroy Spawned Units On End Play`
 - `Enable Visual Debug`, `Debug Duration`
@@ -124,6 +215,8 @@ Useful Blueprint functions:
 - `Move Spawned Units By Offset`
 - `Command Spawned Units To Location`
 - `Start Crowd Simulation`, `Stop Crowd Simulation`, `Force Crowd Update`
+- `Activate Crowd Against Actor`, `Deactivate Crowd Engagement`
+- `Find Closest Spawned Unit`, `Notify Spawned Unit Interacted`, `Damage Spawned Unit And Activate`
 - `Get Valid Spawned Units`
 - `Get Valid Spawned Unit Count`
 - `Destroy Spawned Units`
@@ -158,6 +251,7 @@ Project-wide settings are under **Project Settings > Plugins > Mass Unit System*
 | `Visual Update Interval` | 0.033 s | ISM/Niagara upload rate; increase to reduce visual update cost |
 | `Crowd Update Interval` | 0.1 s | Base rate for behavior decisions and spatial steering; smooth Mass movement remains independent |
 | `Max Crowd Units Per Update` | 500 | Round-robin budget for crowd decisions during one timer callback |
+| `Max Shared Path Builds Per Crowd Update` | 8 | Caps newly built engagement/subgroup corridors during one crowd update |
 | `Crowd Spatial Cell Size` | 200 cm | Spatial-hash cell size for local separation and interaction searches |
 | `LOD Distance Thresholds` | 500/1,500/3,000/6,000 cm | Distance bands written to unit visual LOD data |
 | `Visibility LOD Update Intervals` | 0.05/0.1/0.2/0.5/1.0 s | Staggered distance/culling refresh rates from near to far |
@@ -166,6 +260,7 @@ Project-wide settings are under **Project Settings > Plugins > Mass Unit System*
 | `Max Visible Distance` | 10,000 cm | Excludes farther units from visual submission; zero disables culling |
 | `Max Skeletal Mesh Units` | 100 | Caps close-range skeletal components; set to zero for instanced-only use |
 | `Skeletal Mesh Distance` | 300 cm | Distance inside which eligible units request skeletal representation |
+| `Skeletal Mesh Hysteresis` | 1.2 x | Keeps an existing skeletal owner until it crosses the wider exit boundary |
 | `Max Path Requests Per Frame` | 100 | Limits asynchronous navmesh requests submitted per world tick |
 | `Enable Instanced Mesh Fallback` | On | Makes units visible without a custom Niagara system |
 | `Fallback Static Mesh` | Empty | Optional project-wide mesh used when a template has no static mesh |
@@ -180,8 +275,10 @@ Blueprint diagnostics:
 - `Get Instanced Mesh Component Count`: allocated fallback mesh groups
 - `Get Instanced Mesh Instance Count`: currently submitted fallback instances
 - `Get Instanced Mesh Topology Revision`: changes only when slots are added/removed; it remains stable while units move
+- `Get Instanced Mesh Custom Data Float Count`: eight for the standard animation/LOD/team/health material layout
+- `Get Active/Available Skeletal Mesh Count` and `Get Skeletal Mesh Capacity`: bounded close-range representation use
 - `Get Queued Request Count`: queued and in-flight navigation requests
-- `Get Crowd Stats`: registered/active/sleeping counts, update budget usage, destinations, interactions, and neighbor checks
+- `Get Crowd Stats`: registered/managed-subgroup/active/sleeping/engaged counts, update budget usage, destinations, interactions, attacks, ambient/engagement shared-path builds, per-unit path requests, and neighbor checks
 
 Safe starting pattern:
 
@@ -198,11 +295,16 @@ Safe starting pattern:
 
 Direct movement works without a Nav Mesh Bounds Volume.
 
-For obstacle-aware movement:
+For obstacle- and terrain-aware Planar 2D movement:
 
 1. Add a **Nav Mesh Bounds Volume**.
-2. Build navigation and press **P** to verify the green navmesh.
-3. Enable `Use Navigation` on the spawner, or call `Request Path` from Blueprint.
+2. Resize it over every intended hill, ramp, bridge, and destination.
+3. Build navigation and press **P** to verify continuous green coverage.
+4. Enable `Use Navigation` on the spawner, or call `Request Path` from Blueprint.
+5. Keep `Conform To Navmesh Height` on and set the mesh-pivot `Navigation Height Offset` (50 cm for the default cube).
+6. Start with managed subgroups enabled at 32 units and inspect `Get Crowd Stats`: a 25-unit ambient test should build one subgroup corridor and queue zero per-unit paths.
+
+The navmesh corridor carries Z elevation into Planar 2D movement without a downward trace per entity. Free 3D groups intentionally use direct XYZ steering; projects needing volumetric obstacle avoidance should supply a project-specific 3D navigation strategy.
 
 Formation shapes are `Rectangle`, `Line`, `Column`, `Wedge`, and `Circle`. Use the formation service when a group should retain assigned slots while moving.
 
@@ -214,7 +316,7 @@ Open **Tools > Test Automation**, filter for `MassUnitSystem`, and run:
 MassUnitSystem.Core.NativeMassLifecycle
 ```
 
-The test covers native entity creation, independent fragments, combat, path fallback/cancellation, movement, formations, deterministic crowd destinations, pause/resume, paired interactions, asset-free defaults, stable ISM updates, destruction, and safe world teardown.
+The test covers native entity creation, independent fragments, health/healing and spatial queries, combat, path fallback/cancellation, nav-height planar movement, free-3D movement, formations, deterministic managed subgroups, one ambient corridor and one engagement corridor with zero per-unit requests, pause/resume, paired interactions, player interaction/damage activation, moving-target follow refresh, attack requests, eight-float ISM data, asset-free defaults, stable ISM updates, destruction, and safe world teardown.
 
 ## Quick troubleshooting
 
@@ -238,6 +340,24 @@ The test covers native entity creation, independent fragments, combat, path fall
 
 - Keep `Use Navigation` off for the first test.
 - With navigation enabled, add/build a Nav Mesh Bounds Volume or keep direct-path fallback enabled.
+
+**Ground units clip through hills or keep their original Z**
+
+- Use `Planar 2D`, enable `Use Navigation`, and confirm the entire route is green with **P**.
+- Keep `Conform To Navmesh Height` enabled and set `Navigation Height Offset` for the mesh pivot.
+- A direct fallback path cannot infer terrain; fix navmesh coverage instead of relying on fallback for hills.
+
+**Engagement is enabled but units keep wandering**
+
+- `Always Acquire Player` and `Player Proximity` require a possessed player pawn; use Play, not Simulate, for the automatic test.
+- In interaction mode, call `Notify Spawned Unit Interacted` or `Damage Spawned Unit And Activate` with a valid Actor.
+- Use `Is Crowd Group Engaged` and `Get Crowd Group Target Actor` to verify acquisition.
+
+**Units follow but never damage the GAS player**
+
+- Set `Gameplay Effect To Target` to a damage Gameplay Effect accepted by the player's ASC.
+- Or handle `On Crowd Attack Requested` in the project damage pipeline.
+- Disable `Apply Actor Damage` when the Gameplay Effect already owns health damage.
 
 More cases are covered in [docs/troubleshooting.md](docs/troubleshooting.md).
 

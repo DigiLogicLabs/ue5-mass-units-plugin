@@ -2,12 +2,14 @@
 
 #pragma once
 
+#include "Animation/AnimInstance.h"
 #include "CoreMinimal.h"
 #include "Engine/DataAsset.h"
 #include "GameplayTagContainer.h"
 #include "UnitTemplate.generated.h"
 
 class UScriptStruct;
+class UAnimationAsset;
 class USkeletalMesh;
 class UStaticMesh;
 class UTexture2D;
@@ -62,6 +64,25 @@ public:
     /** Skeletal mesh for the unit */
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Unit Template|Visual")
     TSoftObjectPtr<USkeletalMesh> SkeletalMesh;
+
+	/** Optional close-range Animation Blueprint. State clips below take precedence when assigned. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Unit Template|Visual|Skeletal Animation")
+	TSoftClassPtr<UAnimInstance> AnimationBlueprintClass;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Unit Template|Visual|Skeletal Animation")
+	TSoftObjectPtr<UAnimationAsset> IdleAnimation;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Unit Template|Visual|Skeletal Animation")
+	TSoftObjectPtr<UAnimationAsset> MoveAnimation;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Unit Template|Visual|Skeletal Animation")
+	TSoftObjectPtr<UAnimationAsset> AttackAnimation;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Unit Template|Visual|Skeletal Animation")
+	TSoftObjectPtr<UAnimationAsset> DeathAnimation;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Unit Template|Visual|Skeletal Animation")
+	TSoftObjectPtr<UAnimationAsset> StunAnimation;
 
     /** Static mesh for the unit */
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Unit Template|Visual")

@@ -32,6 +32,15 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Mass Unit System|Rendering")
 	bool TransitionToVertex(FMassUnitHandle UnitHandle);
 
+	UFUNCTION(BlueprintPure, Category = "Mass Unit System|Rendering|Diagnostics")
+	int32 GetActiveSkeletalMeshCount() const { return EntityMeshMap.Num(); }
+
+	UFUNCTION(BlueprintPure, Category = "Mass Unit System|Rendering|Diagnostics")
+	int32 GetAvailableSkeletalMeshCount() const { return AvailableMeshes.Num(); }
+
+	UFUNCTION(BlueprintPure, Category = "Mass Unit System|Rendering|Diagnostics")
+	int32 GetSkeletalMeshCapacity() const { return MaxPoolSize; }
+
 	USkeletalMeshComponent* GetMeshForUnitInternal(FMassUnitEntityHandle Entity);
 	bool TransitionToSkeletalInternal(FMassUnitEntityHandle Entity);
 	bool TransitionToVertexInternal(FMassUnitEntityHandle Entity);
@@ -52,9 +61,15 @@ private:
 	UPROPERTY(Transient)
 	TMap<TObjectPtr<USkeletalMeshComponent>, FMassUnitEntityHandle> MeshEntityMap;
 
+	TMap<TObjectPtr<USkeletalMeshComponent>, FGameplayTag> MeshAnimationTags;
+
 	int32 MaxPoolSize = 100;
+	float UpdateInterval = 0.033f;
+	float LastUpdateTime = -BIG_NUMBER;
 
 	USkeletalMeshComponent* CreateMeshComponent();
 	void UpdateMeshFromEntity(USkeletalMeshComponent* Mesh, FMassUnitEntityHandle Entity);
+	class UAnimationAsset* ResolveAnimationAsset(const struct FMassUnitVisualFragment& Visual) const;
+	static bool ShouldLoopAnimation(const FGameplayTag& AnimationTag);
 	bool IsEntityValid(FMassUnitEntityHandle Entity) const;
 };

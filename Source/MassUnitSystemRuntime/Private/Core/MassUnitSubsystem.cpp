@@ -132,7 +132,7 @@ void UMassUnitSubsystem::Tick(float DeltaTime)
 		BehaviorIntegration->Tick(DeltaTime);
 	}
 
-	const TArray<FMassUnitEntityHandle> Units = UnitManager->GetAllUnitsInternal();
+	const TArray<FMassUnitEntityHandle>& Units = UnitManager->GetAllUnitsInternal();
 	if (MeshPool)
 	{
 		MeshPool->UpdateUnitMeshes(Units);

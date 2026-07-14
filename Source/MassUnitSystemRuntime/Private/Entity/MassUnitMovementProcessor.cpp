@@ -73,6 +73,20 @@ void UMassUnitMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 			}
 
 			const FVector CurrentLocation = Transform.GetTransform().GetLocation();
+			const bool bUse3DMovement = Crowd && Crowd->bEnabled && Crowd->bUse3DMovement;
+			const bool bFollowNavmeshHeight = Crowd
+				&& Crowd->bEnabled
+				&& !bUse3DMovement
+				&& Crowd->bConformToNavmeshHeight
+				&& Nav.bPathUsesNavmesh;
+			auto AdjustNavigationHeight = [Crowd, bFollowNavmeshHeight](FVector Point)
+			{
+				if (bFollowNavmeshHeight)
+				{
+					Point.Z += Crowd->NavigationHeightOffset;
+				}
+				return Point;
+			};
 			FVector Destination = FVector::ZeroVector;
 			float StopDistance = Nav.AcceptanceRadius;
 			bool bHasDestination = false;
@@ -99,13 +113,16 @@ void UMassUnitMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 			if (!bHasDestination && Nav.bPathValid)
 			{
 				while (Nav.PathPoints.IsValidIndex(Nav.CurrentPathIndex)
-					&& FVector::DistSquared(CurrentLocation, Nav.PathPoints[Nav.CurrentPathIndex]) <= FMath::Square(Nav.AcceptanceRadius))
+					&& (bUse3DMovement || bFollowNavmeshHeight
+						? FVector::DistSquared(CurrentLocation, AdjustNavigationHeight(Nav.PathPoints[Nav.CurrentPathIndex]))
+						: FVector::DistSquared2D(CurrentLocation, Nav.PathPoints[Nav.CurrentPathIndex]))
+							<= FMath::Square(Nav.AcceptanceRadius))
 				{
 					++Nav.CurrentPathIndex;
 				}
 				if (Nav.PathPoints.IsValidIndex(Nav.CurrentPathIndex))
 				{
-					Destination = Nav.PathPoints[Nav.CurrentPathIndex];
+					Destination = AdjustNavigationHeight(Nav.PathPoints[Nav.CurrentPathIndex]);
 					bHasDestination = true;
 				}
 				else
@@ -116,7 +133,7 @@ void UMassUnitMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 
 			if (!bHasDestination && Target.HasTarget())
 			{
-				Destination = Target.TargetLocation;
+				Destination = AdjustNavigationHeight(Target.TargetLocation);
 				bHasDestination = true;
 			}
 
@@ -126,12 +143,16 @@ void UMassUnitMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 			if (bHasDestination && !bCrowdMovementSuppressed)
 			{
 				const FVector ToDestination = Destination - CurrentLocation;
-				if (ToDestination.SizeSquared2D() > FMath::Square(StopDistance))
+				const bool bUseVerticalMovement = bUse3DMovement || bFollowNavmeshHeight;
+				const float DistanceSquared = bUseVerticalMovement ? ToDestination.SizeSquared() : ToDestination.SizeSquared2D();
+				if (DistanceSquared > FMath::Square(StopDistance))
 				{
-					FVector DesiredDirection = ToDestination.GetSafeNormal2D();
+					FVector DesiredDirection = bUseVerticalMovement ? ToDestination.GetSafeNormal() : ToDestination.GetSafeNormal2D();
 					if (Crowd && Crowd->bEnabled && !Crowd->SteeringDirection.IsNearlyZero())
 					{
-						DesiredDirection = (DesiredDirection + Crowd->SteeringDirection).GetSafeNormal2D();
+						DesiredDirection = bUseVerticalMovement
+							? (DesiredDirection + Crowd->SteeringDirection).GetSafeNormal()
+							: (DesiredDirection + Crowd->SteeringDirection).GetSafeNormal2D();
 					}
 					DesiredVelocity = DesiredDirection * State.MoveSpeed;
 				}
@@ -146,7 +167,10 @@ void UMassUnitMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 			{
 				FTransform& MutableTransform = Transform.GetMutableTransform();
 				MutableTransform.AddToTranslation(Velocity.Value * DeltaTime);
-				const FRotator DesiredRotation = Velocity.Value.Rotation();
+				const FRotator VelocityRotation = Velocity.Value.Rotation();
+				const FRotator DesiredRotation = bUse3DMovement
+					? VelocityRotation
+					: FRotator(0.0f, VelocityRotation.Yaw, 0.0f);
 				MutableTransform.SetRotation(FMath::RInterpConstantTo(MutableTransform.Rotator(), DesiredRotation, DeltaTime, TurningRate).Quaternion());
 				LookAt.Direction = Velocity.Value.GetSafeNormal();
 				if (State.CurrentState != EMassUnitState::Attacking && State.CurrentState != EMassUnitState::Interacting)

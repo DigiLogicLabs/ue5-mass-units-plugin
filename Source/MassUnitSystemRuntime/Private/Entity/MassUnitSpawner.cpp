@@ -229,6 +229,11 @@ int32 AMassUnitSpawner::StartCrowdSimulation()
 		CrowdConfig,
 		bUseNavigation,
 		AcceptanceRadius);
+	if (CrowdGroupHandle != INDEX_NONE && bEnablePlayerEngagement)
+	{
+		CrowdSystem->ConfigureCrowdGroupEngagement(CrowdGroupHandle, PlayerEngagementConfig, true);
+		CrowdSystem->ForceCrowdGroupUpdate(CrowdGroupHandle);
+	}
 	return CrowdGroupHandle;
 }
 
@@ -260,6 +265,80 @@ bool AMassUnitSpawner::IsCrowdSimulationActive() const
 	const UMassUnitSubsystem* UnitSubsystem = UMassUnitSubsystem::Get(this);
 	const UMassUnitCrowdSystem* CrowdSystem = UnitSubsystem ? UnitSubsystem->GetCrowdSystem() : nullptr;
 	return CrowdSystem && CrowdSystem->IsCrowdGroupRegistered(CrowdGroupHandle);
+}
+
+bool AMassUnitSpawner::ActivateCrowdAgainstActor(AActor* TargetActor)
+{
+	UMassUnitSubsystem* UnitSubsystem = UMassUnitSubsystem::Get(this);
+	UMassUnitCrowdSystem* CrowdSystem = UnitSubsystem ? UnitSubsystem->GetCrowdSystem() : nullptr;
+	return CrowdSystem && CrowdSystem->ActivateCrowdGroupForActor(CrowdGroupHandle, TargetActor);
+}
+
+bool AMassUnitSpawner::DeactivateCrowdEngagement(bool bReturnToWander)
+{
+	UMassUnitSubsystem* UnitSubsystem = UMassUnitSubsystem::Get(this);
+	UMassUnitCrowdSystem* CrowdSystem = UnitSubsystem ? UnitSubsystem->GetCrowdSystem() : nullptr;
+	return CrowdSystem && CrowdSystem->DeactivateCrowdGroupEngagement(CrowdGroupHandle, bReturnToWander);
+}
+
+bool AMassUnitSpawner::NotifySpawnedUnitInteracted(FMassUnitHandle UnitHandle, AActor* InteractingActor)
+{
+	if (!SpawnedUnits.Contains(UnitHandle))
+	{
+		return false;
+	}
+	UMassUnitSubsystem* UnitSubsystem = UMassUnitSubsystem::Get(this);
+	UMassUnitCrowdSystem* CrowdSystem = UnitSubsystem ? UnitSubsystem->GetCrowdSystem() : nullptr;
+	return CrowdSystem && CrowdSystem->NotifyUnitInteracted(UnitHandle, InteractingActor);
+}
+
+bool AMassUnitSpawner::DamageSpawnedUnitAndActivate(
+	FMassUnitHandle UnitHandle,
+	float Damage,
+	AActor* DamageInstigator)
+{
+	if (!SpawnedUnits.Contains(UnitHandle))
+	{
+		return false;
+	}
+	UMassUnitSubsystem* UnitSubsystem = UMassUnitSubsystem::Get(this);
+	UMassUnitCrowdSystem* CrowdSystem = UnitSubsystem ? UnitSubsystem->GetCrowdSystem() : nullptr;
+	return CrowdSystem && CrowdSystem->DamageUnitAndActivate(UnitHandle, Damage, DamageInstigator);
+}
+
+FMassUnitHandle AMassUnitSpawner::FindClosestSpawnedUnit(
+	FVector WorldLocation,
+	float MaxDistance,
+	bool bUse3DDistance) const
+{
+	const UMassUnitSubsystem* UnitSubsystem = UMassUnitSubsystem::Get(this);
+	const UMassUnitEntityManager* UnitManager = UnitSubsystem ? UnitSubsystem->GetUnitManager() : nullptr;
+	if (!UnitManager || MaxDistance < 0.0f)
+	{
+		return {};
+	}
+
+	float BestDistanceSquared = FMath::Square(MaxDistance);
+	FMassUnitHandle BestUnit;
+	for (const FMassUnitHandle UnitHandle : SpawnedUnits)
+	{
+		FTransform Transform;
+		FMassUnitStateFragment State;
+		if (!UnitManager->GetUnitTransform(UnitHandle, Transform)
+			|| !UnitManager->GetUnitState(UnitHandle, State)
+			|| State.CurrentState == EMassUnitState::Dead)
+		{
+			continue;
+		}
+		const FVector Delta = Transform.GetLocation() - WorldLocation;
+		const float DistanceSquared = bUse3DDistance ? Delta.SizeSquared() : Delta.SizeSquared2D();
+		if (DistanceSquared <= BestDistanceSquared)
+		{
+			BestDistanceSquared = DistanceSquared;
+			BestUnit = UnitHandle;
+		}
+	}
+	return BestUnit;
 }
 
 FVector AMassUnitSpawner::CalculateLocalGridOffset(int32 UnitIndex, int32 TotalUnits) const

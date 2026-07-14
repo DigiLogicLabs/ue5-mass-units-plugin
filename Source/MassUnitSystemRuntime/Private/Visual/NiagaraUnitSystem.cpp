@@ -196,7 +196,7 @@ void UNiagaraUnitSystem::UpdateNiagaraData(const TArray<FMassUnitEntityHandle>& 
 		Rotations.Add(UnitTransform.GetRotation());
 		TeamColors.Add(FVector(Team->TeamColor.R, Team->TeamColor.G, Team->TeamColor.B));
 		TeamIDs.Add(static_cast<float>(Team->TeamID));
-		AnimationIndices.Add(static_cast<float>(State->CurrentState));
+		AnimationIndices.Add(static_cast<float>(ResolveAnimationIndex(*Visual, *State)));
 		AnimationTimes.Add(State->StateTime);
 		LODLevels.Add(static_cast<float>(Visual->LODLevel));
 		VisibilityFlags.Add(1.0f);
@@ -223,6 +223,7 @@ void UNiagaraUnitSystem::UpdateInstancedMeshData(const TArray<FMassUnitEntityHan
 	}
 	const FMassEntityManager& EntityManager = EntitySubsystem->GetEntityManager();
 	TMap<UStaticMesh*, TArray<FTransform>> InstancesByMesh;
+	TMap<UStaticMesh*, TArray<float>> CustomDataByMesh;
 	const int32 Count = FMath::Min(MaxUnits, Entities.Num());
 	for (int32 Index = 0; Index < Count; ++Index)
 	{
@@ -233,7 +234,9 @@ void UNiagaraUnitSystem::UpdateInstancedMeshData(const TArray<FMassUnitEntityHan
 		}
 		const FMassUnitTransformFragment* Transform = EntityManager.GetFragmentDataPtr<FMassUnitTransformFragment>(NativeHandle);
 		const FMassUnitVisualFragment* Visual = EntityManager.GetFragmentDataPtr<FMassUnitVisualFragment>(NativeHandle);
-		if (!Transform || !Visual || !Visual->bIsVisible || Visual->bUseSkeletalMesh)
+		const FMassUnitStateFragment* State = EntityManager.GetFragmentDataPtr<FMassUnitStateFragment>(NativeHandle);
+		const FMassUnitTeamFragment* Team = EntityManager.GetFragmentDataPtr<FMassUnitTeamFragment>(NativeHandle);
+		if (!Transform || !Visual || !State || !Team || !Visual->bIsVisible || Visual->bUseSkeletalMesh)
 		{
 			continue;
 		}
@@ -241,6 +244,16 @@ void UNiagaraUnitSystem::UpdateInstancedMeshData(const TArray<FMassUnitEntityHan
 		if (Mesh)
 		{
 			InstancesByMesh.FindOrAdd(Mesh).Add(Transform->GetTransform());
+			TArray<float>& CustomData = CustomDataByMesh.FindOrAdd(Mesh);
+			CustomData.Reserve(InstancesByMesh[Mesh].Num() * InstancedCustomDataFloatCount);
+			CustomData.Add(static_cast<float>(ResolveAnimationIndex(*Visual, *State)));
+			CustomData.Add(State->StateTime);
+			CustomData.Add(static_cast<float>(Visual->LODLevel));
+			CustomData.Add(static_cast<float>(Team->TeamID));
+			CustomData.Add(Team->TeamColor.R);
+			CustomData.Add(Team->TeamColor.G);
+			CustomData.Add(Team->TeamColor.B);
+			CustomData.Add(State->MaxHealth > UE_SMALL_NUMBER ? State->Health / State->MaxHealth : 0.0f);
 		}
 	}
 
@@ -248,7 +261,12 @@ void UNiagaraUnitSystem::UpdateInstancedMeshData(const TArray<FMassUnitEntityHan
 	for (const TPair<TObjectPtr<UStaticMesh>, TObjectPtr<UInstancedStaticMeshComponent>>& Pair : InstancedMeshComponents)
 	{
 		const TArray<FTransform>* DesiredTransforms = InstancesByMesh.Find(Pair.Key.Get());
-		SynchronizeInstancedMeshComponent(Pair.Value, DesiredTransforms ? *DesiredTransforms : EmptyTransforms);
+		const TArray<float>* DesiredCustomData = CustomDataByMesh.Find(Pair.Key.Get());
+		static const TArray<float> EmptyCustomData;
+		SynchronizeInstancedMeshComponent(
+			Pair.Value,
+			DesiredTransforms ? *DesiredTransforms : EmptyTransforms,
+			DesiredCustomData ? *DesiredCustomData : EmptyCustomData);
 	}
 	for (const TPair<UStaticMesh*, TArray<FTransform>>& Pair : InstancesByMesh)
 	{
@@ -259,14 +277,15 @@ void UNiagaraUnitSystem::UpdateInstancedMeshData(const TArray<FMassUnitEntityHan
 		}
 		if (Component->GetInstanceCount() == 0)
 		{
-			SynchronizeInstancedMeshComponent(Component, Pair.Value);
+			SynchronizeInstancedMeshComponent(Component, Pair.Value, CustomDataByMesh.FindChecked(Pair.Key));
 		}
 	}
 }
 
 void UNiagaraUnitSystem::SynchronizeInstancedMeshComponent(
 	UInstancedStaticMeshComponent* Component,
-	const TArray<FTransform>& WorldTransforms)
+	const TArray<FTransform>& WorldTransforms,
+	const TArray<float>& CustomData)
 {
 	if (!Component)
 	{
@@ -307,6 +326,11 @@ void UNiagaraUnitSystem::SynchronizeInstancedMeshComponent(
 		++InstancedMeshTopologyRevision;
 	}
 
+	if (DesiredCount > 0 && CustomData.Num() == DesiredCount * InstancedCustomDataFloatCount)
+	{
+		Component->SetCustomData(0, DesiredCount - 1, CustomData, true);
+	}
+
 	const bool bShouldBeVisible = DesiredCount > 0;
 	if (Component->IsVisible() != bShouldBeVisible)
 	{
@@ -333,8 +357,25 @@ UInstancedStaticMeshComponent* UNiagaraUnitSystem::GetOrCreateInstancedMeshCompo
 	Component->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	Component->SetGenerateOverlapEvents(false);
 	Component->SetCanEverAffectNavigation(false);
+	Component->SetNumCustomDataFloats(InstancedCustomDataFloatCount);
 	Component->SetStaticMesh(Mesh);
 	Component->RegisterComponentWithWorld(World);
 	InstancedMeshComponents.Add(Mesh, Component);
 	return Component;
+}
+
+int32 UNiagaraUnitSystem::ResolveAnimationIndex(
+	const FMassUnitVisualFragment& Visual,
+	const FMassUnitStateFragment& State)
+{
+	if (!VertexAnimationManager)
+	{
+		return static_cast<int32>(State.CurrentState);
+	}
+	if (Visual.VertexAnimationTexture && Visual.CurrentAnimation.IsValid())
+	{
+		VertexAnimationManager->RegisterAnimationTexture(Visual.CurrentAnimation, Visual.VertexAnimationTexture);
+	}
+	const int32 AnimationIndex = VertexAnimationManager->GetAnimationIndex(Visual.CurrentAnimation);
+	return AnimationIndex != INDEX_NONE ? AnimationIndex : static_cast<int32>(State.CurrentState);
 }

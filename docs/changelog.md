@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.4.0
+
+- Added opt-in group-level player engagement with manual, interaction/damage, proximity, and always-acquire modes.
+- Added budget-compatible moving-target sampling, repath thresholds, deterministic follow spread, automatic release/return-to-wander, and Blueprint lifecycle/attack events.
+- Added one shared navmesh corridor per engaged group, waypoint look-ahead, spatial-hash separation while following, group-only debug by default, and diagnostics proving that the default path issues zero per-unit nav queries.
+- Added deterministic managed subgroups with shared ambient corridors, bounded shared-path work, subgroup membership queries, and coalesced presentation cues for pooled sound/VFX.
+- Added terrain-height conformance for Planar 2D navmesh paths, including a configurable mesh-pivot offset and no per-unit ground trace.
+- Added planar and true free-3D crowd modes, including 3D spatial hashing, sphere-volume wandering, XYZ separation, and direct pitched movement.
+- Added native health queries, healing, health/death events, nearest-unit and radius queries, plus a one-call damage-and-activate path.
+- Added standard Actor damage and optional GAS Gameplay Effects for engaged Actor targets without allocating an ASC or Actor per Mass entity.
+- Added skeletal representation hysteresis/capacity diagnostics, state clip and Animation Blueprint inputs, stable tag-based VAT indices, and eight-float ISM animation/LOD/team/health data.
+- Extended the placeable spawner, diagnostics, README workflow, and packaged automation coverage for engagement, subgroup navigation, terrain height, representation data, and free-3D behavior.
+
 ## 1.3.0
 
 - Added a world-owned, timer-driven crowd service with deterministic bounded wandering, random speed/idle variation, pause/resume, movable centers, forced decisions, and Blueprint diagnostics.

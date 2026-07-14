@@ -11,6 +11,7 @@
 class UArrowComponent;
 class USceneComponent;
 class UUnitTemplate;
+class AActor;
 
 /**
  * Placeable, actor-light bootstrap for repeatable Mass Unit spawning.
@@ -74,6 +75,14 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mass Unit Spawner|Crowd", meta = (EditCondition = "bEnableCrowdSimulation", ShowOnlyInnerProperties))
 	FMassUnitCrowdConfig CrowdConfig;
 
+	/** Adds opt-in target acquisition, following, and attacks to this crowd. Ambient-only behavior remains the default. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mass Unit Spawner|Engagement", meta = (EditCondition = "bEnableCrowdSimulation"))
+	bool bEnablePlayerEngagement = false;
+
+	/** Activation, follow/repath, native damage, and optional GAS-effect controls for the whole group. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mass Unit Spawner|Engagement", meta = (EditCondition = "bEnableCrowdSimulation && bEnablePlayerEngagement", ShowOnlyInnerProperties))
+	FMassUnitPlayerEngagementConfig PlayerEngagementConfig;
+
 	/** Prevent duplicate autonomous simulation on network clients. Standalone and listen-server quick starts still spawn normally. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mass Unit Spawner|Networking")
 	bool bSpawnOnAuthorityOnly = true;
@@ -133,6 +142,24 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "Mass Unit System|Spawner|Crowd")
 	int32 GetCrowdGroupHandle() const { return CrowdGroupHandle; }
+
+	/** Explicitly activates this spawner's engagement-enabled crowd against an Actor. */
+	UFUNCTION(BlueprintCallable, Category = "Mass Unit System|Spawner|Engagement")
+	bool ActivateCrowdAgainstActor(AActor* TargetActor);
+
+	UFUNCTION(BlueprintCallable, Category = "Mass Unit System|Spawner|Engagement")
+	bool DeactivateCrowdEngagement(bool bReturnToWander = true);
+
+	/** Call from the project's interaction trace/click/overlap after resolving a spawned unit. */
+	UFUNCTION(BlueprintCallable, Category = "Mass Unit System|Spawner|Engagement")
+	bool NotifySpawnedUnitInteracted(FMassUnitHandle UnitHandle, AActor* InteractingActor);
+
+	/** Convenience path for a player hit: native Mass damage plus group activation. */
+	UFUNCTION(BlueprintCallable, Category = "Mass Unit System|Spawner|Engagement")
+	bool DamageSpawnedUnitAndActivate(FMassUnitHandle UnitHandle, float Damage, AActor* DamageInstigator);
+
+	UFUNCTION(BlueprintPure, Category = "Mass Unit System|Spawner|Engagement")
+	FMassUnitHandle FindClosestSpawnedUnit(FVector WorldLocation, float MaxDistance, bool bUse3DDistance = false) const;
 
 protected:
 	virtual void BeginPlay() override;

@@ -3,6 +3,8 @@
 #include "Entity/MassUnitCombatProcessor.h"
 
 #include "Core/MassUnitGameplayTags.h"
+#include "Core/MassUnitSubsystem.h"
+#include "Entity/MassUnitEntityManager.h"
 #include "Entity/MassUnitFragments.h"
 #include "MassEntityManager.h"
 #include "MassExecutionContext.h"
@@ -28,7 +30,15 @@ void UMassUnitCombatProcessor::ConfigureQueries(const TSharedRef<FMassEntityMana
 void UMassUnitCombatProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
 {
 	const float DeltaTime = FMath::Min(Context.GetDeltaTimeSeconds(), 0.1f);
-	EntityQuery.ForEachEntityChunk(Context, [this, &EntityManager, DeltaTime](FMassExecutionContext& ChunkContext)
+	UMassUnitEntityManager* UnitManager = nullptr;
+	if (UWorld* World = Context.GetWorld())
+	{
+		if (UMassUnitSubsystem* UnitSubsystem = UMassUnitSubsystem::Get(World))
+		{
+			UnitManager = UnitSubsystem->GetUnitManager();
+		}
+	}
+	EntityQuery.ForEachEntityChunk(Context, [this, &EntityManager, DeltaTime, UnitManager](FMassExecutionContext& ChunkContext)
 	{
 		const TConstArrayView<FMassUnitTransformFragment> Transforms = ChunkContext.GetFragmentView<FMassUnitTransformFragment>();
 		TArrayView<FMassUnitStateFragment> States = ChunkContext.GetMutableFragmentView<FMassUnitStateFragment>();
@@ -84,8 +94,15 @@ void UMassUnitCombatProcessor::Execute(FMassEntityManager& EntityManager, FMassE
 			if (State.AttackCooldownRemaining <= 0.0f)
 			{
 				const float Damage = State.BaseDamage * FMath::Max(1, State.UnitLevel) * DamageMultiplier;
-				TargetState->Health = FMath::Max(0.0f, TargetState->Health - Damage);
 				State.AttackCooldownRemaining = State.AttackCooldown;
+				if (UnitManager)
+				{
+					// The facade owns health/death events and defers them until this Mass
+					// processor finishes, keeping Blueprint mutations outside chunk iteration.
+					UnitManager->ApplyDamageInternal(FMassUnitEntityHandle(TargetHandle), Damage, nullptr, true);
+					continue;
+				}
+				TargetState->Health = FMath::Max(0.0f, TargetState->Health - Damage);
 				if (TargetState->Health <= 0.0f)
 				{
 					TargetState->CurrentState = EMassUnitState::Dead;
