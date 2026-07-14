@@ -110,7 +110,7 @@ The saved Testing spawner still has `Use Navigation = false`; the terrain proof 
 
 ## Release and upstream
 
-- [ ] Finish all compile, automation, host-build, and live Testing-level gates above.
-- [ ] Review the final plugin-only diff and exclude unrelated documentation relocations or host-project changes.
-- [ ] Commit the verified source/docs/tests, push the feature branch, open the PR, wait for checks, and merge to upstream `main`.
+- [x] Finish the compile matrix, packaged automation, host DebugGame build, and transient live terrain/engagement gates documented above.
+- [x] Review the final plugin-only diff and exclude unrelated documentation relocations and host-project changes.
+- [x] Commit the verified source/docs/tests, push the feature branch, and merge PR #6 into upstream `main` (`8ed37da`).
 - [ ] Fresh-clone the merged plugin and repeat the documented setup before declaring the baseline release-ready.
