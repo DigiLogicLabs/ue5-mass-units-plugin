@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "Animation/AnimInstance.h"
 #include "CoreMinimal.h"
 #include "Entity/MassEntityFallback.h"
 #include "GameplayAbilitySpec.h"
@@ -12,6 +13,7 @@
 class USkeletalMesh;
 class UStaticMesh;
 class UTexture2D;
+class UAnimationAsset;
 
 UENUM(BlueprintType)
 enum class EMassUnitState : uint8
@@ -159,8 +161,33 @@ struct MASSUNITSYSTEMRUNTIME_API FMassUnitVisualFragment : public FMassFragment
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Mass Unit")
 	bool bUseSkeletalMesh = false;
 
+	/** Distance-LOD request; the bounded pool independently decides whether capacity is available. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Mass Unit")
+	bool bWantsSkeletalMesh = false;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Mass Unit")
+	float ViewerDistanceSquared = 0.0f;
+
 	UPROPERTY(Transient)
 	TObjectPtr<USkeletalMesh> SkeletalMesh = nullptr;
+
+	UPROPERTY(Transient)
+	TSubclassOf<UAnimInstance> AnimationBlueprintClass;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UAnimationAsset> IdleAnimation = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UAnimationAsset> MoveAnimation = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UAnimationAsset> AttackAnimation = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UAnimationAsset> DeathAnimation = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UAnimationAsset> StunAnimation = nullptr;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UStaticMesh> StaticMesh = nullptr;
@@ -215,6 +242,10 @@ struct MASSUNITSYSTEMRUNTIME_API FMassUnitNavigationFragment : public FMassFragm
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Mass Unit")
 	bool bPathValid = false;
 
+	/** True only when PathPoints came from native navigation data rather than direct fallback. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Mass Unit")
+	bool bPathUsesNavmesh = false;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mass Unit", meta = (ClampMin = "1.0", ForceUnits = "cm"))
 	float AcceptanceRadius = 50.0f;
 
@@ -229,6 +260,7 @@ struct MASSUNITSYSTEMRUNTIME_API FMassUnitNavigationFragment : public FMassFragm
 		CurrentPathIndex = INDEX_NONE;
 		bPathRequested = false;
 		bPathValid = false;
+		bPathUsesNavmesh = false;
 	}
 };
 
@@ -255,31 +287,45 @@ struct MASSUNITSYSTEMRUNTIME_API FMassUnitCrowdFragment : public FMassFragment
 
 	FVector SteeringDirection = FVector::ZeroVector;
 	FVector LastDestination = FVector::ZeroVector;
+	FVector LastFollowTargetLocation = FVector::ZeroVector;
 	FMassUnitEntityHandle InteractionPartner;
 	float BaseMoveSpeed = 0.0f;
 	float NextDecisionTime = 0.0f;
 	float NextSteeringUpdateTime = 0.0f;
+	float NextFollowUpdateTime = 0.0f;
 	float InteractionEndTime = 0.0f;
 	int32 GroupHandle = INDEX_NONE;
+	int32 SubgroupIndex = 0;
+	int32 SharedPathRevision = INDEX_NONE;
 	int32 DecisionSequence = 0;
 	int32 SimulationLOD = 0;
+	float NavigationHeightOffset = 0.0f;
 	bool bEnabled = false;
 	bool bSleeping = false;
+	bool bUse3DMovement = false;
+	bool bConformToNavmeshHeight = false;
 
 	void Reset()
 	{
 		SteeringDirection = FVector::ZeroVector;
 		LastDestination = FVector::ZeroVector;
+		LastFollowTargetLocation = FVector::ZeroVector;
 		InteractionPartner.Invalidate();
 		BaseMoveSpeed = 0.0f;
 		NextDecisionTime = 0.0f;
 		NextSteeringUpdateTime = 0.0f;
+		NextFollowUpdateTime = 0.0f;
 		InteractionEndTime = 0.0f;
 		GroupHandle = INDEX_NONE;
+		SubgroupIndex = 0;
+		SharedPathRevision = INDEX_NONE;
 		DecisionSequence = 0;
 		SimulationLOD = 0;
+		NavigationHeightOffset = 0.0f;
 		bEnabled = false;
 		bSleeping = false;
+		bUse3DMovement = false;
+		bConformToNavmeshHeight = false;
 	}
 };
 

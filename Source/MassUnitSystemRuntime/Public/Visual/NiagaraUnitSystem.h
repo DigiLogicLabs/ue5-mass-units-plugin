@@ -48,6 +48,10 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Mass Unit System|Rendering|Diagnostics")
 	int32 GetInstancedMeshTopologyRevision() const { return InstancedMeshTopologyRevision; }
 
+	/** Per-instance material data: animation index/time, LOD, team id/RGB, and health percent. */
+	UFUNCTION(BlueprintPure, Category = "Mass Unit System|Rendering|Diagnostics")
+	int32 GetInstancedMeshCustomDataFloatCount() const { return InstancedCustomDataFloatCount; }
+
 	UVertexAnimationManager* GetVertexAnimationManager() const { return VertexAnimationManager; }
 
 private:
@@ -75,6 +79,7 @@ private:
 	int32 CurrentLODLevel = 0;
 	int32 MaxUnits = 10000;
 	int32 InstancedMeshTopologyRevision = 0;
+	static constexpr int32 InstancedCustomDataFloatCount = 8;
 	float UpdateFrequency = 0.033f;
 	float LastUpdateTime = -BIG_NUMBER;
 	bool bEnableInstancedFallback = true;
@@ -82,6 +87,10 @@ private:
 	void CreateNiagaraSystem();
 	void UpdateNiagaraData(const TArray<FMassUnitEntityHandle>& Entities);
 	void UpdateInstancedMeshData(const TArray<FMassUnitEntityHandle>& Entities);
-	void SynchronizeInstancedMeshComponent(UInstancedStaticMeshComponent* Component, const TArray<FTransform>& WorldTransforms);
+	void SynchronizeInstancedMeshComponent(
+		UInstancedStaticMeshComponent* Component,
+		const TArray<FTransform>& WorldTransforms,
+		const TArray<float>& CustomData);
+	int32 ResolveAnimationIndex(const struct FMassUnitVisualFragment& Visual, const struct FMassUnitStateFragment& State);
 	UInstancedStaticMeshComponent* GetOrCreateInstancedMeshComponent(UStaticMesh* Mesh);
 };

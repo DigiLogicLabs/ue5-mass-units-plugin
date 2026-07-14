@@ -29,6 +29,20 @@ public:
 
 	bool RequestPathInternal(FMassUnitEntityHandle Entity, const FVector& Destination, float AcceptanceRadius = 50.0f);
 
+	/**
+	 * Calculates one native navmesh corridor for a group anchor. The caller can
+	 * share the returned points across many Mass entities instead of submitting
+	 * one path query per entity. Uses the configured direct fallback when needed.
+	 */
+	bool FindSharedPath(
+		const FVector& Start,
+		const FVector& Destination,
+		TArray<FVector>& OutPathPoints,
+		bool* bOutUsesNavmesh = nullptr);
+
+	/** Projects one lightweight shared-crowd slot onto the active navmesh without building an individual path. */
+	bool ProjectPointToNavigation(const FVector& Point, FVector& OutProjectedLocation);
+
 	/** Cancels queued/in-flight work for one unit and clears its current path. */
 	UFUNCTION(BlueprintCallable, Category = "Mass Unit System|Navigation")
 	bool CancelPath(FMassUnitHandle UnitHandle);

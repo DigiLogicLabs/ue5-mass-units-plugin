@@ -9,10 +9,13 @@
 #include "Engine/SkeletalMesh.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/Texture2D.h"
+#include "Engine/World.h"
+#include "GameFramework/Actor.h"
 #include "MassEntityManager.h"
 #include "MassEntitySubsystem.h"
 #include "MassEntityView.h"
 #include "MassUnitCommonFragments.h"
+#include "TimerManager.h"
 
 void UMassUnitEntityManager::Initialize(UMassEntitySubsystem* InEntitySubsystem)
 {
@@ -101,6 +104,12 @@ FMassUnitEntityHandle UMassUnitEntityManager::CreateUnitFromTemplateInternal(UUn
 
 	FMassUnitVisualFragment& Visual = EntityView.GetFragmentData<FMassUnitVisualFragment>();
 	Visual.SkeletalMesh = Template->SkeletalMesh.LoadSynchronous();
+	Visual.AnimationBlueprintClass = Template->AnimationBlueprintClass.LoadSynchronous();
+	Visual.IdleAnimation = Template->IdleAnimation.LoadSynchronous();
+	Visual.MoveAnimation = Template->MoveAnimation.LoadSynchronous();
+	Visual.AttackAnimation = Template->AttackAnimation.LoadSynchronous();
+	Visual.DeathAnimation = Template->DeathAnimation.LoadSynchronous();
+	Visual.StunAnimation = Template->StunAnimation.LoadSynchronous();
 	Visual.StaticMesh = Template->StaticMesh.LoadSynchronous();
 	Visual.VertexAnimationTexture = Template->VertexAnimationTexture.LoadSynchronous();
 	Visual.NormalMapTexture = Template->NormalMapTexture.LoadSynchronous();
@@ -108,6 +117,7 @@ FMassUnitEntityHandle UMassUnitEntityManager::CreateUnitFromTemplateInternal(UUn
 	Visual.CurrentAnimation = UE::MassUnitSystem::Tags::AnimationIdle();
 	Visual.TargetAnimation = Visual.CurrentAnimation;
 	Visual.bUseSkeletalMesh = false;
+	Visual.bWantsSkeletalMesh = false;
 	Visual.bIsVisible = true;
 
 	FMassUnitFormationFragment& Formation = EntityView.GetFragmentData<FMassUnitFormationFragment>();
@@ -309,6 +319,7 @@ bool UMassUnitEntityManager::SetUnitDestination(FMassUnitHandle UnitHandle, cons
 	Navigation->AcceptanceRadius = FMath::Max(1.0f, AcceptanceRadius);
 	Navigation->bPathRequested = false;
 	Navigation->bPathValid = true;
+	Navigation->bPathUsesNavmesh = false;
 	return true;
 }
 
@@ -327,6 +338,10 @@ bool UMassUnitEntityManager::SetUnitTarget(FMassUnitHandle UnitHandle, FMassUnit
 	Target->TargetLocation = FVector::ZeroVector;
 	Target->bHasTargetLocation = false;
 	Target->TargetPriority = Priority;
+	if (FMassUnitNavigationFragment* Navigation = EntitySubsystem->GetMutableEntityManager().GetFragmentDataPtr<FMassUnitNavigationFragment>(UnitHandle.EntityHandle.ToMassEntityHandle()))
+	{
+		Navigation->ResetPath();
+	}
 	return true;
 }
 
@@ -410,9 +425,106 @@ bool UMassUnitEntityManager::GetUnitState(FMassUnitHandle UnitHandle, FMassUnitS
 	return true;
 }
 
-bool UMassUnitEntityManager::ApplyDamage(FMassUnitHandle UnitHandle, float Damage)
+bool UMassUnitEntityManager::GetUnitHealth(
+	FMassUnitHandle UnitHandle,
+	float& OutHealth,
+	float& OutMaxHealth) const
 {
+	OutHealth = 0.0f;
+	OutMaxHealth = 0.0f;
+	FMassUnitStateFragment State;
+	if (!GetUnitState(UnitHandle, State))
+	{
+		return false;
+	}
+	OutHealth = State.Health;
+	OutMaxHealth = State.MaxHealth;
+	return true;
+}
+
+float UMassUnitEntityManager::GetUnitHealthPercent(FMassUnitHandle UnitHandle) const
+{
+	float Health = 0.0f;
+	float MaxHealth = 0.0f;
+	return GetUnitHealth(UnitHandle, Health, MaxHealth) && MaxHealth > UE_SMALL_NUMBER
+		? FMath::Clamp(Health / MaxHealth, 0.0f, 1.0f)
+		: 0.0f;
+}
+
+bool UMassUnitEntityManager::ApplyDamage(
+	FMassUnitHandle UnitHandle,
+	float Damage,
+	AActor* DamageInstigator)
+{
+	return ApplyDamageInternal(UnitHandle.EntityHandle, Damage, DamageInstigator);
+}
+
+bool UMassUnitEntityManager::ApplyDamageInternal(
+	FMassUnitEntityHandle EntityHandle,
+	float Damage,
+	AActor* DamageInstigator,
+	bool bDeferEvents)
+{
+	const FMassUnitHandle UnitHandle(EntityHandle);
 	if (!IsUnitValid(UnitHandle) || Damage <= 0.0f)
+	{
+		return false;
+	}
+	FMassUnitStateFragment* State = EntitySubsystem->GetMutableEntityManager().GetFragmentDataPtr<FMassUnitStateFragment>(EntityHandle.ToMassEntityHandle());
+	if (!State || State->CurrentState == EMassUnitState::Dead)
+	{
+		return false;
+	}
+
+	const float PreviousHealth = State->Health;
+	const float NewHealth = FMath::Max(0.0f, PreviousHealth - Damage);
+	if (FMath::IsNearlyEqual(PreviousHealth, NewHealth))
+	{
+		return false;
+	}
+	State->Health = NewHealth;
+	const bool bDied = NewHealth <= 0.0f;
+	if (bDied)
+	{
+		State->CurrentState = EMassUnitState::Dead;
+		State->StateTime = 0.0f;
+	}
+
+	if (bDeferEvents && EntitySubsystem && EntitySubsystem->GetWorld())
+	{
+		TWeakObjectPtr<UMassUnitEntityManager> WeakThis(this);
+		TWeakObjectPtr<AActor> WeakInstigator(DamageInstigator);
+		EntitySubsystem->GetWorld()->GetTimerManager().SetTimerForNextTick(FTimerDelegate::CreateLambda(
+			[WeakThis, WeakInstigator, UnitHandle, PreviousHealth, NewHealth, bDied]()
+			{
+				if (UMassUnitEntityManager* Manager = WeakThis.Get())
+				{
+					AActor* InstigatorActor = WeakInstigator.Get();
+					Manager->OnUnitHealthChanged.Broadcast(UnitHandle, PreviousHealth, NewHealth, InstigatorActor);
+					if (bDied)
+					{
+						Manager->OnUnitDied.Broadcast(UnitHandle, InstigatorActor);
+					}
+				}
+			}));
+	}
+	else
+	{
+		OnUnitHealthChanged.Broadcast(UnitHandle, PreviousHealth, NewHealth, DamageInstigator);
+		if (bDied)
+		{
+			OnUnitDied.Broadcast(UnitHandle, DamageInstigator);
+		}
+	}
+	return true;
+}
+
+bool UMassUnitEntityManager::HealUnit(
+	FMassUnitHandle UnitHandle,
+	float Amount,
+	AActor* HealInstigator)
+{
+	if (!IsUnitValid(UnitHandle) || Amount <= 0.0f)
 	{
 		return false;
 	}
@@ -421,11 +533,86 @@ bool UMassUnitEntityManager::ApplyDamage(FMassUnitHandle UnitHandle, float Damag
 	{
 		return false;
 	}
-	State->Health = FMath::Max(0.0f, State->Health - Damage);
-	if (State->Health <= 0.0f)
+	const float PreviousHealth = State->Health;
+	const float NewHealth = FMath::Min(State->MaxHealth, PreviousHealth + Amount);
+	if (FMath::IsNearlyEqual(PreviousHealth, NewHealth))
 	{
-		State->CurrentState = EMassUnitState::Dead;
-		State->StateTime = 0.0f;
+		return false;
 	}
+	State->Health = NewHealth;
+	OnUnitHealthChanged.Broadcast(UnitHandle, PreviousHealth, NewHealth, HealInstigator);
 	return true;
+}
+
+FMassUnitHandle UMassUnitEntityManager::FindClosestUnit(
+	FVector WorldLocation,
+	float MaxDistance,
+	bool bUse3DDistance,
+	bool bIncludeDead) const
+{
+	if (!EntitySubsystem || MaxDistance < 0.0f)
+	{
+		return {};
+	}
+	const FMassEntityManager& EntityManager = EntitySubsystem->GetEntityManager();
+	float BestDistanceSquared = FMath::Square(MaxDistance);
+	FMassUnitEntityHandle BestEntity;
+	for (const FMassUnitEntityHandle Entity : AllUnits)
+	{
+		if (!Entity.IsValid() || !EntityManager.IsEntityValid(Entity.ToMassEntityHandle()))
+		{
+			continue;
+		}
+		const FMassEntityHandle NativeHandle = Entity.ToMassEntityHandle();
+		const FMassUnitStateFragment* State = EntityManager.GetFragmentDataPtr<FMassUnitStateFragment>(NativeHandle);
+		const FMassUnitTransformFragment* Transform = EntityManager.GetFragmentDataPtr<FMassUnitTransformFragment>(NativeHandle);
+		if (!Transform || (!bIncludeDead && State && State->CurrentState == EMassUnitState::Dead))
+		{
+			continue;
+		}
+		const FVector Delta = Transform->GetTransform().GetLocation() - WorldLocation;
+		const float DistanceSquared = bUse3DDistance ? Delta.SizeSquared() : Delta.SizeSquared2D();
+		if (DistanceSquared <= BestDistanceSquared)
+		{
+			BestDistanceSquared = DistanceSquared;
+			BestEntity = Entity;
+		}
+	}
+	return FMassUnitHandle(BestEntity);
+}
+
+TArray<FMassUnitHandle> UMassUnitEntityManager::GetUnitsInRadius(
+	FVector WorldLocation,
+	float Radius,
+	bool bUse3DDistance,
+	bool bIncludeDead) const
+{
+	TArray<FMassUnitHandle> Result;
+	if (!EntitySubsystem || Radius < 0.0f)
+	{
+		return Result;
+	}
+	const FMassEntityManager& EntityManager = EntitySubsystem->GetEntityManager();
+	const float RadiusSquared = FMath::Square(Radius);
+	for (const FMassUnitEntityHandle Entity : AllUnits)
+	{
+		if (!Entity.IsValid() || !EntityManager.IsEntityValid(Entity.ToMassEntityHandle()))
+		{
+			continue;
+		}
+		const FMassEntityHandle NativeHandle = Entity.ToMassEntityHandle();
+		const FMassUnitStateFragment* State = EntityManager.GetFragmentDataPtr<FMassUnitStateFragment>(NativeHandle);
+		const FMassUnitTransformFragment* Transform = EntityManager.GetFragmentDataPtr<FMassUnitTransformFragment>(NativeHandle);
+		if (!Transform || (!bIncludeDead && State && State->CurrentState == EMassUnitState::Dead))
+		{
+			continue;
+		}
+		const FVector Delta = Transform->GetTransform().GetLocation() - WorldLocation;
+		const float DistanceSquared = bUse3DDistance ? Delta.SizeSquared() : Delta.SizeSquared2D();
+		if (DistanceSquared <= RadiusSquared)
+		{
+			Result.Emplace(Entity);
+		}
+	}
+	return Result;
 }

@@ -12,6 +12,7 @@
 
 class UMassEntitySubsystem;
 class UUnitTemplate;
+class AActor;
 
 /** Blueprint-safe wrapper around a world-owned Mass entity handle. */
 USTRUCT(BlueprintType)
@@ -28,7 +29,20 @@ struct MASSUNITSYSTEMRUNTIME_API FMassUnitHandle
 
 	operator FMassUnitEntityHandle() const { return EntityHandle; }
 	bool IsValid() const { return EntityHandle.IsValid(); }
+	friend bool operator==(const FMassUnitHandle& A, const FMassUnitHandle& B) { return A.EntityHandle == B.EntityHandle; }
 };
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_FourParams(
+	FMassUnitHealthChangedSignature,
+	FMassUnitHandle, UnitHandle,
+	float, PreviousHealth,
+	float, NewHealth,
+	AActor*, InstigatorActor);
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(
+	FMassUnitDiedSignature,
+	FMassUnitHandle, UnitHandle,
+	AActor*, InstigatorActor);
 
 /** World-scoped facade for creating and accessing plugin-owned Mass entities. */
 UCLASS(BlueprintType)
@@ -84,15 +98,50 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Mass Unit System")
 	bool GetUnitState(FMassUnitHandle UnitHandle, FMassUnitStateFragment& OutState) const;
 
+	UFUNCTION(BlueprintPure, Category = "Mass Unit System|Health")
+	bool GetUnitHealth(FMassUnitHandle UnitHandle, float& OutHealth, float& OutMaxHealth) const;
+
+	UFUNCTION(BlueprintPure, Category = "Mass Unit System|Health")
+	float GetUnitHealthPercent(FMassUnitHandle UnitHandle) const;
+
 	/** Applies direct lightweight damage. GAS-backed damage can be routed through UGASUnitIntegration instead. */
-	UFUNCTION(BlueprintCallable, Category = "Mass Unit System")
-	bool ApplyDamage(FMassUnitHandle UnitHandle, float Damage);
+	UFUNCTION(BlueprintCallable, Category = "Mass Unit System|Health")
+	bool ApplyDamage(FMassUnitHandle UnitHandle, float Damage, AActor* DamageInstigator = nullptr);
+
+	UFUNCTION(BlueprintCallable, Category = "Mass Unit System|Health")
+	bool HealUnit(FMassUnitHandle UnitHandle, float Amount, AActor* HealInstigator = nullptr);
+
+	/** Returns the closest managed unit inside Max Distance. Choose planar or full XYZ distance per query. */
+	UFUNCTION(BlueprintPure, Category = "Mass Unit System|Queries")
+	FMassUnitHandle FindClosestUnit(
+		FVector WorldLocation,
+		float MaxDistance,
+		bool bUse3DDistance = false,
+		bool bIncludeDead = false) const;
+
+	UFUNCTION(BlueprintPure, Category = "Mass Unit System|Queries")
+	TArray<FMassUnitHandle> GetUnitsInRadius(
+		FVector WorldLocation,
+		float Radius,
+		bool bUse3DDistance = false,
+		bool bIncludeDead = false) const;
+
+	UPROPERTY(BlueprintAssignable, Category = "Mass Unit System|Health|Events")
+	FMassUnitHealthChangedSignature OnUnitHealthChanged;
+
+	UPROPERTY(BlueprintAssignable, Category = "Mass Unit System|Health|Events")
+	FMassUnitDiedSignature OnUnitDied;
 
 	FMassUnitEntityHandle CreateUnitFromTemplateInternal(UUnitTemplate* Template, const FTransform& SpawnTransform);
 	void DestroyUnitInternal(FMassUnitEntityHandle EntityHandle);
-	TArray<FMassUnitEntityHandle> GetAllUnitsInternal() const { return AllUnits; }
+	const TArray<FMassUnitEntityHandle>& GetAllUnitsInternal() const { return AllUnits; }
 	TArray<FMassUnitEntityHandle> GetUnitsByTypeInternal(FGameplayTag UnitType) const;
 	TArray<FMassUnitEntityHandle> GetUnitsByTeamInternal(int32 TeamID) const;
+	bool ApplyDamageInternal(
+		FMassUnitEntityHandle EntityHandle,
+		float Damage,
+		AActor* DamageInstigator = nullptr,
+		bool bDeferEvents = false);
 	void PruneInvalidUnits();
 
 	UMassEntitySubsystem* GetEntitySubsystem() const { return EntitySubsystem; }

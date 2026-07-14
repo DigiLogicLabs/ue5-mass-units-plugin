@@ -31,6 +31,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, config, Category = "Performance", meta = (ClampMin = "1", UIMin = "1"))
 	int32 MaxPathRequestsPerFrame = 100;
 
+	/** Maximum new shared crowd/subgroup navmesh corridors built during one crowd update. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, config, Category = "Performance", meta = (ClampMin = "1", UIMin = "1"))
+	int32 MaxSharedPathBuildsPerCrowdUpdate = 8;
+
 	/** Minimum interval between GPU/instanced representation uploads. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, config, Category = "Performance", meta = (ClampMin = "0.0", ForceUnits = "s"))
 	float VisualUpdateInterval = 0.033f;
@@ -66,6 +70,10 @@ public:
 	/** Units with a skeletal mesh use it inside this distance when pool capacity permits. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, config, Category = "LOD", meta = (ClampMin = "0.0", ForceUnits = "cm"))
 	float SkeletalMeshDistance = 300.0f;
+
+	/** Exit-distance multiplier that prevents skeletal/instanced representation thrashing near the boundary. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, config, Category = "LOD", meta = (ClampMin = "1.0", ClampMax = "4.0"))
+	float SkeletalMeshHysteresis = 1.2f;
 
 	/** Units beyond this distance are excluded from visual representation. Zero disables distance culling. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, config, Category = "LOD", meta = (ClampMin = "0.0", ForceUnits = "cm"))

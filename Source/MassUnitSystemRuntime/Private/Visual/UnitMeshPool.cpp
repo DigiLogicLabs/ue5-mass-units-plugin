@@ -2,7 +2,10 @@
 
 #include "Visual/UnitMeshPool.h"
 
+#include "Animation/AnimationAsset.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "Config/MassUnitSystemSettings.h"
+#include "Core/MassUnitGameplayTags.h"
 #include "Engine/World.h"
 #include "Entity/MassUnitFragments.h"
 #include "MassEntityManager.h"
@@ -13,6 +16,8 @@ void UUnitMeshPool::Initialize(UWorld* InWorld, UMassEntitySubsystem* InEntitySu
 	World = InWorld;
 	EntitySubsystem = InEntitySubsystem;
 	MaxPoolSize = FMath::Max(0, PoolSize);
+	const UMassUnitSystemSettings* Settings = GetDefault<UMassUnitSystemSettings>();
+	UpdateInterval = Settings ? FMath::Max(0.0f, Settings->VisualUpdateInterval) : 0.033f;
 	const int32 PreCreateCount = FMath::Min(MaxPoolSize, 25);
 	for (int32 Index = 0; Index < PreCreateCount; ++Index)
 	{
@@ -44,16 +49,30 @@ void UUnitMeshPool::Deinitialize()
 	AvailableMeshes.Reset();
 	EntityMeshMap.Reset();
 	MeshEntityMap.Reset();
+	MeshAnimationTags.Reset();
 	EntitySubsystem = nullptr;
 	World = nullptr;
 }
 
 void UUnitMeshPool::UpdateUnitMeshes(const TArray<FMassUnitEntityHandle>& Entities)
 {
+	if (!World || World->GetTimeSeconds() - LastUpdateTime < UpdateInterval)
+	{
+		return;
+	}
+	LastUpdateTime = World->GetTimeSeconds();
+
 	TArray<USkeletalMeshComponent*> MeshesToRelease;
 	for (const TPair<FMassUnitEntityHandle, TObjectPtr<USkeletalMeshComponent>>& Pair : EntityMeshMap)
 	{
-		if (!IsEntityValid(Pair.Key) || !Entities.Contains(Pair.Key))
+		if (!IsEntityValid(Pair.Key))
+		{
+			MeshesToRelease.Add(Pair.Value);
+			continue;
+		}
+		const FMassUnitVisualFragment* Visual = EntitySubsystem->GetEntityManager().GetFragmentDataPtr<FMassUnitVisualFragment>(
+			Pair.Key.ToMassEntityHandle());
+		if (!Visual || !Visual->bWantsSkeletalMesh || !Visual->bIsVisible || !Visual->SkeletalMesh)
 		{
 			MeshesToRelease.Add(Pair.Value);
 		}
@@ -68,6 +87,12 @@ void UUnitMeshPool::UpdateUnitMeshes(const TArray<FMassUnitEntityHandle>& Entiti
 		return;
 	}
 	FMassEntityManager& EntityManager = EntitySubsystem->GetMutableEntityManager();
+	struct FCandidate
+	{
+		FMassUnitEntityHandle Entity;
+		float DistanceSquared = 0.0f;
+	};
+	TArray<FCandidate> Candidates;
 	for (const FMassUnitEntityHandle Entity : Entities)
 	{
 		if (!IsEntityValid(Entity))
@@ -79,22 +104,33 @@ void UUnitMeshPool::UpdateUnitMeshes(const TArray<FMassUnitEntityHandle>& Entiti
 		{
 			continue;
 		}
-		if (Visual->bUseSkeletalMesh && Visual->SkeletalMesh)
+		if (USkeletalMeshComponent* Existing = EntityMeshMap.FindRef(Entity))
 		{
-			USkeletalMeshComponent* Mesh = GetMeshForUnitInternal(Entity);
-			if (Mesh)
-			{
-				UpdateMeshFromEntity(Mesh, Entity);
-			}
-			else
-			{
-				Visual->bUseSkeletalMesh = false;
-			}
+			Visual->bUseSkeletalMesh = true;
+			UpdateMeshFromEntity(Existing, Entity);
 		}
-		else if (USkeletalMeshComponent* Existing = EntityMeshMap.FindRef(Entity))
+		else if (Visual->bWantsSkeletalMesh && Visual->bIsVisible && Visual->SkeletalMesh)
 		{
-			ReleaseMesh(Existing);
+			Candidates.Add({Entity, Visual->ViewerDistanceSquared});
+			Visual->bUseSkeletalMesh = false;
 		}
+		else
+		{
+			Visual->bUseSkeletalMesh = false;
+		}
+	}
+
+	Candidates.Sort([](const FCandidate& A, const FCandidate& B)
+	{
+		return A.DistanceSquared < B.DistanceSquared;
+	});
+	for (const FCandidate& Candidate : Candidates)
+	{
+		if (EntityMeshMap.Num() >= MaxPoolSize)
+		{
+			break;
+		}
+		GetMeshForUnitInternal(Candidate.Entity);
 	}
 }
 
@@ -133,6 +169,10 @@ USkeletalMeshComponent* UUnitMeshPool::GetMeshForUnitInternal(FMassUnitEntityHan
 	}
 	EntityMeshMap.Add(Entity, Mesh);
 	MeshEntityMap.Add(Mesh, Entity);
+	if (FMassUnitVisualFragment* Visual = EntitySubsystem->GetMutableEntityManager().GetFragmentDataPtr<FMassUnitVisualFragment>(Entity.ToMassEntityHandle()))
+	{
+		Visual->bUseSkeletalMesh = true;
+	}
 	UpdateMeshFromEntity(Mesh, Entity);
 	return Mesh;
 }
@@ -149,7 +189,16 @@ void UUnitMeshPool::ReleaseMesh(USkeletalMeshComponent* Mesh)
 		return;
 	}
 	EntityMeshMap.Remove(Entity);
+	if (IsEntityValid(Entity))
+	{
+		if (FMassUnitVisualFragment* Visual = EntitySubsystem->GetMutableEntityManager().GetFragmentDataPtr<FMassUnitVisualFragment>(Entity.ToMassEntityHandle()))
+		{
+			Visual->bUseSkeletalMesh = false;
+		}
+	}
+	MeshAnimationTags.Remove(Mesh);
 	Mesh->SetVisibility(false);
+	Mesh->SetAnimInstanceClass(nullptr);
 	Mesh->SetSkeletalMeshAsset(nullptr);
 	AvailableMeshes.AddUnique(Mesh);
 }
@@ -171,6 +220,7 @@ bool UUnitMeshPool::TransitionToSkeletalInternal(FMassUnitEntityHandle Entity)
 		return false;
 	}
 	Visual->bUseSkeletalMesh = true;
+	Visual->bWantsSkeletalMesh = true;
 	if (USkeletalMeshComponent* Mesh = GetMeshForUnitInternal(Entity))
 	{
 		Mesh->SetVisibility(true);
@@ -194,6 +244,7 @@ bool UUnitMeshPool::TransitionToVertexInternal(FMassUnitEntityHandle Entity)
 	if (FMassUnitVisualFragment* Visual = EntitySubsystem->GetMutableEntityManager().GetFragmentDataPtr<FMassUnitVisualFragment>(Entity.ToMassEntityHandle()))
 	{
 		Visual->bUseSkeletalMesh = false;
+		Visual->bWantsSkeletalMesh = false;
 	}
 	if (USkeletalMeshComponent* Mesh = EntityMeshMap.FindRef(Entity))
 	{
@@ -238,9 +289,56 @@ void UUnitMeshPool::UpdateMeshFromEntity(USkeletalMeshComponent* Mesh, FMassUnit
 	if (Mesh->GetSkeletalMeshAsset() != Visual->SkeletalMesh)
 	{
 		Mesh->SetSkeletalMeshAsset(Visual->SkeletalMesh);
+		MeshAnimationTags.Remove(Mesh);
+	}
+	if (UAnimationAsset* Animation = ResolveAnimationAsset(*Visual))
+	{
+		if (MeshAnimationTags.FindRef(Mesh) != Visual->CurrentAnimation)
+		{
+			Mesh->SetAnimationMode(EAnimationMode::AnimationSingleNode);
+			Mesh->PlayAnimation(Animation, ShouldLoopAnimation(Visual->CurrentAnimation));
+			MeshAnimationTags.Add(Mesh, Visual->CurrentAnimation);
+		}
+	}
+	else if (Visual->AnimationBlueprintClass)
+	{
+		if (Mesh->GetAnimationMode() != EAnimationMode::AnimationBlueprint
+			|| Mesh->GetAnimClass() != Visual->AnimationBlueprintClass.Get())
+		{
+			Mesh->SetAnimInstanceClass(Visual->AnimationBlueprintClass.Get());
+			MeshAnimationTags.Remove(Mesh);
+		}
 	}
 	Mesh->SetWorldTransform(Transform->GetTransform());
 	Mesh->SetVisibility(Visual->bIsVisible, true);
+}
+
+UAnimationAsset* UUnitMeshPool::ResolveAnimationAsset(const FMassUnitVisualFragment& Visual) const
+{
+	using namespace UE::MassUnitSystem;
+	if (Visual.CurrentAnimation == Tags::AnimationAttack())
+	{
+		return Visual.AttackAnimation;
+	}
+	if (Visual.CurrentAnimation == Tags::AnimationDeath())
+	{
+		return Visual.DeathAnimation;
+	}
+	if (Visual.CurrentAnimation == Tags::AnimationStun())
+	{
+		return Visual.StunAnimation;
+	}
+	if (Visual.CurrentAnimation == Tags::AnimationWalk() || Visual.CurrentAnimation == Tags::AnimationRun())
+	{
+		return Visual.MoveAnimation;
+	}
+	return Visual.IdleAnimation;
+}
+
+bool UUnitMeshPool::ShouldLoopAnimation(const FGameplayTag& AnimationTag)
+{
+	using namespace UE::MassUnitSystem;
+	return AnimationTag != Tags::AnimationAttack() && AnimationTag != Tags::AnimationDeath();
 }
 
 bool UUnitMeshPool::IsEntityValid(FMassUnitEntityHandle Entity) const
